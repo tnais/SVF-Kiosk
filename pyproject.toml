@@ -27,4 +27,7 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["core*", "models*", "cli*", "tui*", "daemon*"]
+include = ["core*", "models*", "db*", "cli*", "tui*", "daemon*"]
+
+[tool.setuptools.package-data]
+db = ["schema.sql"]
