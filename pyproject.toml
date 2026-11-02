@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "svf-kiosk"
+version = "2.0.0"
+description = "Sistema multimediale SVF Kiosk per un museo ferroviario"
+requires-python = ">=3.11"
+dependencies = [
+    "textual>=0.85.0",
+    "pydantic>=2.10.0",
+    "python-mpv-jsonipc>=1.1.1",
+    "pytest>=8.3.0",
+]
+
+[project.scripts]
+svf-ingest = "cli.ingest:main"
+svf-usb-sync = "cli.usb_sync:main"
+svf-playlist-editor = "tui.playlist_editor:main"
+svf-kiosk-daemon = "daemon.kiosk_player:main"
+svf-status = "cli.status:main"
+svf-restore = "cli.restore:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["core*", "models*", "cli*", "tui*", "daemon*"]
