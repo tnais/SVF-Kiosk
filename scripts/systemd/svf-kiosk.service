@@ -1,0 +1,19 @@
+[Unit]
+Description=SVF Kiosk player (mpv + Bluetooth remote)
+After=svf-x11.service
+Wants=svf-x11.service
+
+[Service]
+Type=simple
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/svf-operatore/.Xauthority
+Environment=PYTHONUNBUFFERED=1
+Environment=SVF_ROOT=/var/lib/svf-kiosk
+Environment=LANG=it_IT.UTF-8
+ExecStartPre=/bin/sh -c 'i=0; while [ ! -S /tmp/.X11-unix/X0 ]; do i=$((i+1)); [ "$i" -gt 60 ] && exit 1; sleep 1; done'
+ExecStart=/opt/svf-kiosk/venv/bin/svf-kiosk-daemon
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

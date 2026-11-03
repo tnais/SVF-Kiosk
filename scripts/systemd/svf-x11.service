@@ -1,0 +1,20 @@
+[Unit]
+Description=SVF Kiosk minimal X11 session
+After=systemd-user-sessions.service
+Conflicts=getty@tty1.service
+After=getty@tty1.service
+
+[Service]
+Type=simple
+User=svf-operatore
+Group=svf-operatore
+PAMName=login
+TTYPath=/dev/tty1
+StandardInput=tty
+Environment=LANG=it_IT.UTF-8
+ExecStart=/usr/bin/xinit /opt/svf-kiosk/scripts/x11-session.sh -- /usr/bin/X :0 vt1 -nocursor -keeptty
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
