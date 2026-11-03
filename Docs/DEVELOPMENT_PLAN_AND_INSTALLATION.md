@@ -467,23 +467,7 @@ needs_root_rights=no
 EOF
 ```
 
-Create user X11 startup script `/home/svf-operatore/.xinitrc`:
-```bash
-tee /home/svf-operatore/.xinitrc > /dev/null << 'EOF'
-#!/bin/sh
-# Disable screen saver, screen blanking, and DPMS sleep
-xset s off
-xset -dpms
-xset s noblank
-
-# Hide mouse cursor after 0.5s idle
-unclutter -idle 0.5 -root &
-
-# Launch SVF Kiosk player
-exec /opt/svf-kiosk/venv/bin/python3 -m src.daemon.kiosk_player
-EOF
-chmod +x /home/svf-operatore/.xinitrc
-```
+The X11 session script is `scripts/x11-session.sh` (screen blanking and DPMS off, `unclutter -idle 0.5 -root`). It is started by `svf-x11.service`; the player runs separately as the user service `svf-kiosk.service`.
 
 ### 3.4 Deploying SVF Kiosk Software & Database
 ```bash
@@ -507,7 +491,9 @@ sqlite3 /var/lib/svf-kiosk/data/svf_kiosk.db < src/db/schema.sql
 sudo ln -sf /opt/svf-kiosk/venv/bin/svf-playlist-editor /usr/local/bin/svf-playlist-editor
 sudo ln -sf /opt/svf-kiosk/venv/bin/svf-ingest /usr/local/bin/svf-ingest
 sudo ln -sf /opt/svf-kiosk/venv/bin/svf-usb-sync /usr/local/bin/svf-usb-sync
+sudo ln -sf /opt/svf-kiosk/venv/bin/svf-presets /usr/local/bin/svf-presets
 sudo ln -sf /opt/svf-kiosk/venv/bin/svf-status /usr/local/bin/svf-status
+sudo ln -sf /opt/svf-kiosk/venv/bin/svf-restore /usr/local/bin/svf-restore
 sudo ln -sf /opt/svf-kiosk/venv/bin/svf-restart /usr/local/bin/svf-restart
 sudo ln -sf /opt/svf-kiosk/venv/bin/svf-backup-restore /usr/local/bin/svf-backup-restore
 ```
@@ -541,41 +527,131 @@ ReconnectIntervals=1, 2, 4, 8
 ### 3.6 Systemd Service Setup & Auto-Start
 Configure `systemd` to run X11 and the kiosk daemon automatically at boot:
 
-Create `/etc/systemd/system/svf-kiosk.service`:
-```ini
-[Unit]
-Description=SVF Museum Kiosk Player (X11)
-After=network.target sound.target bluetooth.target systemd-user-sessions.service
-Wants=bluetooth.target
+Two units are used (both in `scripts/systemd/`):
+- `svf-x11.service` (system unit): runs `xinit /opt/svf-kiosk/scripts/x11-session.sh -- /usr/bin/X :0 vt1` as `svf-operatore`.
+- `svf-kiosk.service` (**user** unit of `svf-operatore`, installed in `~/.config/systemd/user/`): waits for `/tmp/.X11-unix/X0`, then runs `svf-kiosk-daemon` with `Restart=always`, `RestartSec=3`. It is a user unit so that `svf-restore` can run `systemctl --user restart svf-kiosk.service`; lingering (`loginctl enable-linger svf-operatore`) starts it at boot.
 
-[Service]
-Type=simple
-User=svf-operatore
-Group=svf-operatore
-PAMName=login
-Environment=LANG=it_IT.UTF-8
-Environment=LC_ALL=it_IT.UTF-8
-Environment=SVF_ROOT=/var/lib/svf-kiosk
-WorkingDirectory=/home/svf-operatore
-ExecStart=/usr/bin/xinit /home/svf-operatore/.xinitrc -- /usr/bin/X :0 vt1 -nocursor -keeptty
-Restart=always
-RestartSec=3s
+`/run/svf-kiosk` (mpv socket) is created at boot by `/etc/tmpfiles.d/svf-kiosk.conf`.
 
-# Resource and sandbox hardening
-LimitNOFILE=65535
-StandardOutput=journal
-StandardError=journal
+### 3.6a Automated Provisioning
 
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start the service:
+On a fresh Debian 12 minimal system, from a checkout of the repository:
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable svf-kiosk.service
-sudo systemctl start svf-kiosk.service
+sudo ./scripts/setup-kiosk.sh
 ```
+The script (`set -euo pipefail`, refuses non-root and non-Debian-12) installs the packages, the `it_IT.UTF-8` locale, the operator user, the polkit rule, `/var/lib/svf-kiosk/...` (775), the software and venv in `/opt/svf-kiosk`, the `/usr/local/bin` symlinks, and enables both services. It is safe to re-run. Sections 3.2-3.6 describe the same steps manually.
+
+**Automated static checks** (`tests/test_provisioning.py`, no root needed, run by `pytest tests/`): the scripts and unit files are read as text and cross-checked against the Python code. They verify, among other things:
+- shell syntax, shebangs, executable bits, LF line endings, no mojibake;
+- strict mode, root and Debian 12 checks placed before any system change, and the step order (packages, locale, user, X11/polkit, data directories, software, symlinks, services);
+- idempotence markers (`mkdir -p`, `ln -sf`, `rsync`, `id` and `locale -a` checks) and no dangerous patterns (downloads, `| sh`, `rm -rf /`, unquoted variables in `chown`/`chmod`/`rsync`);
+- that every `/usr/local/bin` symlink is a real entry point in `pyproject.toml` (and every operator tool is linked), that every referenced file exists, and that the data root, mpv socket directory and operator user match the application defaults;
+- the unit constraints (user unit vs system unit, ordering after X, bounded wait for the X socket, `:0` on `vt1`, `Restart=always`/`RestartSec=3`, no Wayland tooling) and `systemd-analyze verify`.
+
+They do not prove that provisioning works on a real machine: that is covered by manual group G.
+
+Useful commands afterwards: `systemctl status svf-x11`, `sudo -u svf-operatore XDG_RUNTIME_DIR=/run/user/$(id -u svf-operatore) systemctl --user status svf-kiosk`, `journalctl _UID=$(id -u svf-operatore) -u svf-kiosk`.
+
+### 3.6b SSH Terminal Smoke Test (Playlist Editor)
+
+Unit tests cannot prove the TUI works over a real SSH pseudo-terminal. On a machine where passwordless SSH to the target host is configured (for example `localhost`), run:
+
+```bash
+.venv/bin/python scripts/ssh-smoke-editor.py [host] [TERM]   # defaults: localhost, xterm-256color
+```
+
+The script seeds a throw-away `SVF_ROOT` (the real database is never touched), opens `svf-playlist-editor` through `ssh -tt` at 80x24, and verifies panel rendering, add-to-playlist, save, clean quit and persistence. It has been verified with `TERM` set to `xterm-256color`, `xterm`, `vt100` and `linux`. It does not replace a visual check of colours (blue/green) on the operator's actual terminal.
+
+### 3.6c Required Manual Tests (not coverable by `pytest`)
+
+These checks need real hardware, a real terminal or a real `mpv`. Run them once on the target machine before commissioning and after any change to the touched component. Record date, tester and result next to each item.
+
+**A. Playlist editor on the operator terminal** (SSH from the operator PC, `TERM` as the terminal sets it)
+
+| # | Procedure | Expected result |
+|---|---|---|
+| A1 | Open `svf-playlist-editor`. Look at colours. | Black background, white text, reverse-video cursor. Videos in the playlist are **blue** in the left panel. |
+| A2 | Right panel: `INVIO` on a row. | Row turns **green** (readable on the terminal's palette). `↑ / ↓` moves it; `TAB` is ignored; `INVIO` locks it. |
+| A3 | Left panel, blue video: press `C`. | Audible beep (or visual bell, depending on terminal settings) and the Italian "in playlist" error. |
+| A4 | Same on a 16-colour terminal (`COLORTERM` unset, e.g. `TERM=linux` on the machine console). | Blue/green markers still distinguishable; no garbled escape sequences. |
+| A5 | Resize the terminal below 80x24, then back. | No crash; layout recovers at 80x24. Below 80x24 behaviour is only informational. |
+| A6 | Accented characters (è à é ì ò ù, —, ↑ ↓, ▶) in titles and messages. | Rendered correctly, no mojibake. |
+| A7 | Delete flow: `C` on an unlinked video, answer `s` twice. | Two Italian prompts; file is moved to `trash/`; entry disappears. Any other answer cancels. |
+| A8 | Press `S`, then `Q`; reopen the editor. | "Scaletta salvata" shown; order persisted; a snapshot appears in `backups/` and `playlist.json` is updated. |
+| A9 | Edit without saving, press `Q`. | Italian unsaved-changes prompt; `n` stays in the editor. |
+| A10 | Disconnect the SSH session (close the terminal) while editing. | No corrupted database; the next launch opens normally. |
+| A12 | Left or right panel: `P`, then `3`. Press `S`, reopen the editor. | Italian confirmation; a `[3]` badge appears next to the title in both panels and persists after saving. `P` then `0` clears all keys of the video; `ESC` cancels. |
+| A13 | `svf-presets set 3 "<part of title>"`, then `svf-presets list`. | Key 3 is listed with the video; an ambiguous title lists candidates and changes nothing (use `--id`). `svf-presets clear 3` frees it. |
+| A14 | With the daemon running, press `3` on the remote after A12/A13. | The assigned video plays immediately (presets are read at each keypress). |
+| A11 | Keep the editor open, run `svf-ingest --force` in a second session, then press `TAB` / navigate. | Known limitation: the new video appears only after restarting the editor. |
+
+Automated partial coverage: `scripts/ssh-smoke-editor.py` (section 3.6b).
+
+**B. `mpv` integration (requires `mpv` installed and an X11 session)**
+
+| # | Procedure | Expected result |
+|---|---|---|
+| B1 | Run `pytest tests/test_mpv_client.py` on the target. | The real-mpv test is no longer skipped and passes. |
+| B2 | Start `mpv` with `config/mpv.conf` and the IPC socket; send `loadfile`, `pause`, `get_property` through `MpvClient`. | Commands accepted; errors raise `MpvIpcError`. |
+| B3 | `play_preview` during ambient playback. | Ambient pauses, preview plays for 15 s with the OSD banner, ambient resumes at the **same position**. The five-argument `loadfile` used to restore the position is unverified against real `mpv`; confirm it. |
+| B4 | Kill `mpv` while an `MpvClient` call is in flight. | Italian "mpv unavailable" message; no hang. |
+| B5 | Hardware decoding (`vaapi`/`vdpau`) with a real museum video. | `mpv` log shows hardware decoding active; no dropped frames on the TV. |
+
+**C. USB sync and ingest (real devices)**
+
+| # | Procedure | Expected result |
+|---|---|---|
+| C1 | Plug a USB stick with `.mp4/.mkv/.mov` files; run `svf-usb-sync` as `svf-operatore` outside visit hours (or with `--force`). | Mounted via `udisksctl` without a root password; only new files copied to `media/incoming/`; stick unmounted cleanly. |
+| C2 | Unplug the stick (or pull it) during the copy. | Italian error; no crash. A leftover `*.part` file in `incoming/` is a known issue and must be removed by hand. |
+| C3 | Stick with FAT32/exFAT/NTFS and with file names containing accents and spaces. | Files copied with correct names. |
+| C4 | `svf-ingest` on a real file with accented title; accept the preview. | `ffprobe` metadata correct; preview shown on the TV; file moved to `media/archive/`; row inserted. |
+| C5 | Title of 39 characters, description of 151 characters. | Rejected with an Italian message; no silent truncation. |
+| C6 | Run `svf-ingest` / `svf-usb-sync` during visit hours and while ambient video plays, without `--force`. | Refused with the Italian visit-hour warning. With `--force` it proceeds. Note: the ambient kiosk plays whenever idle, so operators normally need `--force`. |
+
+**D. System-level**
+
+| # | Procedure | Expected result |
+|---|---|---|
+| D1 | Pull the AC plug during an editor save or an ingest, then reboot. | SQLite WAL recovers; the database passes `PRAGMA integrity_check`; latest snapshot in `backups/` is usable. |
+| D2 | Run `scripts/setup-venv.sh` on a fresh clone. | `.venv` created and `pytest tests/` passes. |
+| D3 | `scripts/ssh-smoke-editor.py` against the real host (not only `localhost`). | All checks `OK`. |
+
+**E. Kiosk daemon and Bluetooth remote (`svf-kiosk-daemon`, requires X11, `mpv`, a paired remote; the service user must be in the `input` group to read `/dev/input/event*`)**
+
+| # | Procedure | Expected result |
+|---|---|---|
+| E1 | Start the daemon under `xinit` with a non-empty playlist. | Fullscreen playback on the TV, cursor hidden, ambient rotation advances at the end of each video (verifies the `idle-active` end-of-file detection and the 1.5 s start grace). |
+| E2 | Empty playlist, then add a video with the editor and save. | Italian standby message on a black screen; within ~5 s of the save, playback starts by itself. |
+| E3 | Press `1`-`9` (also the keypad) on a mapped key. | Ambient stops, OSD `▶ Riproduzione richiesta: …` for 3 s, requested video plays. Unmapped key: Italian "nessun filmato associato" message. |
+| E4 | Let the on-demand video finish, then repeat pressing `ESC`/`Annulla`. | Ambient resumes with the **next** video (not the interrupted one, not from 0:00) and the OSD `Ripresa scaletta normale…`. |
+| E5 | `OK`/`Menu`: lower-third carousel, `↑ / ↓`, `OK`. | Carousel readable at the bottom of the screen (verify the ASS `\an2` / `${osd-ass-cc}` markup on the real mpv), wraps around, selection plays on demand; `ESC` or 10 s of inactivity closes it. |
+| E6 | `kill -9` the `mpv` process during ambient and during on-demand playback. | mpv is back within 3 s; the same video is replayed; after an on-demand video, `ESC` still resumes with the correct next video. |
+| E7 | `systemctl stop` / `kill -TERM` the daemon. | mpv terminated, `/run/svf-kiosk/mpv.sock` removed. |
+| E8 | Disconnect/reconnect the Bluetooth remote while running. | Known limitation: devices are opened at start; restart the daemon after re-pairing. |
+| E9 | Rename a playlist file on disk while running. | The file is skipped, the next one plays; no infinite loop. |
+| E10 | Boot auto-start, screen blanking/DPMS off, cursor hiding (`unclutter`). | After `setup-kiosk.sh` and a reboot, the kiosk starts by itself without login; the screen never blanks; the cursor disappears after 0.5 s. |
+
+**Group G — Provisioning (`scripts/setup-kiosk.sh`, on a clean Debian 12 VM or the target)**
+
+| # | Action | Expected result |
+|---|--------|-----------------|
+| G1 | Run `sudo ./scripts/setup-kiosk.sh` on a clean minimal Debian 12; then re-run it. | Completes without errors both times (idempotent); on non-Debian-12 or non-root it refuses with an Italian error. |
+| G2 | Reboot. | `svf-x11.service` active, `svf-kiosk.service` active for `svf-operatore`, `/run/svf-kiosk/mpv.sock` exists, TV shows the Italian standby or the playlist. |
+| G3 | `kill -9` the Python daemon, then `systemctl stop svf-x11` / start. | Daemon back in ~3 s; after an X restart the daemon recovers or is restarted by systemd (verify that mpv re-attaches to the new display). |
+| G4 | As `svf-operatore`: `udisksctl mount -b /dev/sdX1` without password. | Mounts without a polkit prompt. |
+| G5 | Reboot with no HDMI TV attached, then attach it. | Known risk: X may start without a screen; reboot with the TV on if the picture does not appear. |
+
+Assign keys `1`-`9` with the editor (`P` then a digit, saved with `S`) or with `svf-presets` (see tests A12-A14).
+
+**Group F — `svf-status` and `svf-restore` (real hardware)**
+
+| # | Action | Expected result |
+|---|--------|-----------------|
+| F1 | `svf-status` while a video plays, then paused, then with the daemon stopped. | File, elapsed/total time and "in riproduzione"/"in pausa"; with the daemon stopped "Lettore video: non raggiungibile." |
+| F2 | `svf-status` on the real Pi/PC. | CPU temperature, RAM, free disk in the SVF root, and the HDMI output with its resolution are plausible (`xrandr` needs `DISPLAY=:0`; over SSH it is set automatically). |
+| F3 | `svf-status` with the Bluetooth remote on, off, and with low battery. | Address shown when connected; battery shown only if the remote reports it (many HID remotes do not); "non connesso" when off. |
+| F4 | `svf-restore`, choose an older snapshot, answer `s`. | Safety `pre_restore` snapshot created, playlist reverted in the editor, `playlist.json` regenerated, daemon restarted (`systemctl --user` needs a user session / lingering) and the kiosk plays the restored playlist. |
+| F5 | `svf-restore` when `systemctl --user` fails (e.g. over a plain `su`). | Italian warning that the database was restored but the service must be restarted by hand. |
 
 ### 3.7 Acceptance Testing & Commissioning Checklist
 

@@ -59,6 +59,9 @@ class EditorState:
         self.dirty = False
         self.message = ""
         self.pending: str | None = None  # "del1" | "del2" | "quit"
+        self.awaiting_preset = False
+        self.presets: dict[int, int] = {k: v["id"] for k, v in db.get_remote_presets().items()}
+        self._loaded_presets = dict(self.presets)
         self.bell = False
         self.should_exit = False
 
@@ -77,12 +80,12 @@ class EditorState:
 
     # ------------------------------------------------------------ navigation
     def toggle_focus(self) -> None:
-        if self.reorder or self.pending:
+        if self.reorder or self.pending or self.awaiting_preset:
             return
         self.focus = RIGHT if self.focus == LEFT else LEFT
 
     def move(self, delta: int) -> None:
-        if self.pending:
+        if self.pending or self.awaiting_preset:
             return
         if self.focus == LEFT:
             self.left_idx = max(0, min(self.left_idx + delta, len(self.videos) - 1))
@@ -100,7 +103,7 @@ class EditorState:
 
     # --------------------------------------------------------------- actions
     def enter(self) -> None:
-        if self.pending:
+        if self.pending or self.awaiting_preset:
             return
         video = self.current_video()
         if video is None:
@@ -117,7 +120,7 @@ class EditorState:
             self.message = S.MSG_TUI_REORDER_ON if self.reorder else S.MSG_TUI_REORDER_OFF
 
     def remove(self) -> None:
-        if self.pending or self.focus != RIGHT or self.reorder or not self.playlist_ids:
+        if self.pending or self.awaiting_preset or self.focus != RIGHT or self.reorder or not self.playlist_ids:
             return
         video = self.by_id[self.playlist_ids.pop(self.right_idx)]
         self.dirty = True
@@ -125,7 +128,7 @@ class EditorState:
         self.message = S.MSG_TUI_REMOVED.format(title=video["display_title"])
 
     def delete(self) -> None:
-        if self.pending or self.focus != LEFT:
+        if self.pending or self.awaiting_preset or self.focus != LEFT:
             return
         video = self.current_video()
         if video is None:
@@ -137,8 +140,41 @@ class EditorState:
         self.pending = "del1"
         self.message = S.MSG_TUI_CONFIRM_DEL_1.format(title=video["display_title"])
 
+    def keys_of(self, video_id: int) -> list[int]:
+        return sorted(k for k, v in self.presets.items() if v == video_id)
+
+    def start_preset(self) -> None:
+        if self.pending or self.reorder or self.current_video() is None:
+            return
+        self.awaiting_preset = True
+        self.message = S.MSG_TUI_PRESET_PROMPT
+
+    def press_preset_key(self, key: str) -> None:
+        """Second step of ``P``: a digit assigns, ``0`` clears, anything else cancels."""
+        if not self.awaiting_preset:
+            return
+        video = self.current_video()
+        if key == "escape" or video is None:
+            self.awaiting_preset = False
+            self.message = S.MSG_TUI_PRESET_CANCELLED
+        elif key == "0":
+            self.awaiting_preset = False
+            owned = self.keys_of(video["id"])
+            for k in owned:
+                del self.presets[k]
+            self.dirty = self.dirty or bool(owned)
+            self.message = (S.MSG_TUI_PRESET_CLEARED.format(title=video["display_title"])
+                            if owned else S.MSG_TUI_PRESET_NONE)
+        elif len(key) == 1 and key in "123456789":
+            self.awaiting_preset = False
+            self.presets[int(key)] = video["id"]
+            self.dirty = True
+            self.message = S.MSG_TUI_PRESET_SET.format(key=key, title=video["display_title"])
+        else:
+            self.message = S.MSG_TUI_PRESET_INVALID
+
     def request_quit(self) -> None:
-        if self.pending:
+        if self.pending or self.awaiting_preset:
             return
         if self.dirty:
             self.pending = "quit"
@@ -177,20 +213,34 @@ class EditorState:
             return
         self.videos = [v for v in self.videos if v["id"] != video["id"]]
         self.by_id.pop(video["id"], None)
+        self.presets = {k: v for k, v in self.presets.items() if v != video["id"]}
         self._clamp()
         self.message = S.MSG_TUI_DELETED.format(title=video["display_title"])
 
     def save(self) -> None:
-        if self.pending:
+        if self.pending or self.awaiting_preset:
             return
         self.db.create_backup("pre_edit")
         self.db.set_playlist(self.playlist_ids)
+        self._save_presets()
         self.db.create_backup("post_edit")
         self.db.rotate_backups()
         self.db.export_json_mirror()
         self.dirty = False
         self.reorder = False
         self.message = S.MSG_TUI_SAVED
+
+    def _save_presets(self) -> None:
+        """Apply only this session's preset changes on top of the current database state."""
+        merged = {k: v["id"] for k, v in self.db.get_remote_presets().items()}
+        for key in set(self._loaded_presets) - set(self.presets):
+            merged.pop(key, None)
+        for key, video_id in self.presets.items():
+            if self._loaded_presets.get(key) != video_id:
+                merged[key] = video_id
+        self.db.set_remote_presets(merged)
+        self.presets = dict(merged)
+        self._loaded_presets = dict(merged)
 
     # ------------------------------------------------------------- rendering
     def render_panel(self, which: str) -> Text:
@@ -208,7 +258,10 @@ class EditorState:
         for i in range(top, min(top + PANEL_ROWS, len(videos))):
             video = videos[i]
             prefix = f"{i + 1:>2}. " if which == RIGHT else "   "
-            line = (prefix + video["display_title"])[: PANEL_WIDTH - 1].ljust(PANEL_WIDTH - 1)
+            keys = self.keys_of(video["id"])
+            badge = f" [{','.join(map(str, keys))}]" if keys else ""
+            room = PANEL_WIDTH - 1 - len(badge)
+            line = (prefix + video["display_title"])[:room].ljust(room) + badge
             style = self.palette["normal"]
             if which == LEFT and video["id"] in self.playlist_ids:
                 style = self.palette["in_playlist"]
@@ -288,6 +341,10 @@ def build_app(db: Database):
             key = event.key
             if st.pending:
                 st.answer(key.lower() in ("s",))
+            elif st.awaiting_preset:
+                st.press_preset_key(key)
+            elif key == "p":
+                st.start_preset()
             elif key == "tab":
                 st.toggle_focus()
             elif key == "up":

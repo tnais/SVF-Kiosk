@@ -1,3 +1,7 @@
+# SVF Kiosk minimal X11 session — SYSTEM unit.
+# Starts X on :0 (vt1) as svf-operatore and runs scripts/x11-session.sh (no screen
+# blanking, hidden cursor). The player runs separately as the user unit
+# svf-kiosk.service. Wayland compositors are strictly forbidden.
 [Unit]
 Description=SVF Kiosk minimal X11 session
 After=systemd-user-sessions.service

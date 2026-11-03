@@ -453,3 +453,196 @@ def test_main_builds_app_with_default_database(monkeypatch, tmp_path):
     monkeypatch.setattr(playlist_editor, "build_app", lambda db: (started.setdefault("root", db.root), FakeApp())[1])
     assert playlist_editor.main() == 0
     assert started["ran"] and started["root"] == tmp_path
+
+
+# ---- remote presets (P key) ---------------------------------------------
+def press(state, *keys):
+    for k in keys:
+        if state.awaiting_preset:
+            state.press_preset_key(k)
+        elif k == "p":
+            state.start_preset()
+
+
+def test_preset_assign_marks_dirty_and_shows_message(env):
+    db, ids, _ = env
+    st = EditorState(db)  # cursor on Alfa
+    press(st, "p")
+    assert st.awaiting_preset and st.message == S.MSG_TUI_PRESET_PROMPT
+    press(st, "3")
+    assert st.presets == {3: ids["Alfa"]} and st.dirty and not st.awaiting_preset
+    assert st.message == S.MSG_TUI_PRESET_SET.format(key="3", title="Alfa")
+
+
+def test_preset_not_saved_until_s_and_saved_with_playlist(env):
+    db, ids, _ = env
+    st = EditorState(db)
+    press(st, "p", "3")
+    assert db.get_remote_presets() == {}
+    st.save()
+    assert db.get_remote_presets()[3]["id"] == ids["Alfa"]
+    assert len(db.list_backups()) >= 2 and not st.dirty
+
+
+def test_preset_loaded_from_database_on_start(env):
+    db, ids, _ = env
+    db.set_remote_preset(7, ids["Bravo"])
+    assert EditorState(db).presets == {7: ids["Bravo"]}
+
+
+def test_preset_reassigning_a_key_moves_it(env):
+    db, ids, _ = env
+    st = EditorState(db)
+    press(st, "p", "2")
+    st.move(1)
+    press(st, "p", "2")
+    assert st.presets == {2: ids["Bravo"]}
+
+
+def test_one_video_can_hold_several_keys_and_badge_lists_them(env):
+    db, ids, _ = env
+    st = EditorState(db)
+    press(st, "p", "5", "p", "1")
+    assert st.keys_of(ids["Alfa"]) == [1, 5]
+    assert "[1,5]" in st.render_panel(LEFT).plain.splitlines()[1]
+
+
+def test_preset_zero_clears_all_keys_of_video(env):
+    db, ids, _ = env
+    st = EditorState(db)
+    press(st, "p", "5", "p", "1")
+    st.dirty = False
+    press(st, "p", "0")
+    assert st.presets == {} and st.dirty
+    assert st.message == S.MSG_TUI_PRESET_CLEARED.format(title="Alfa")
+
+
+def test_preset_zero_on_video_without_keys_is_a_noop(env):
+    db, *_ = env
+    st = EditorState(db)
+    press(st, "p", "0")
+    assert not st.dirty and st.message == S.MSG_TUI_PRESET_NONE
+
+
+def test_preset_escape_cancels(env):
+    db, *_ = env
+    st = EditorState(db)
+    press(st, "p", "escape")
+    assert not st.awaiting_preset and not st.dirty and st.message == S.MSG_TUI_PRESET_CANCELLED
+
+
+def test_preset_invalid_key_keeps_waiting(env):
+    db, *_ = env
+    st = EditorState(db)
+    press(st, "p", "x")
+    assert st.awaiting_preset and st.message == S.MSG_TUI_PRESET_INVALID
+    press(st, "9")
+    assert st.presets and not st.awaiting_preset
+
+
+def test_preset_works_from_right_panel(env):
+    db, ids, _ = env
+    st = EditorState(db)
+    st.enter()  # Alfa -> playlist
+    st.toggle_focus()
+    press(st, "p", "4")
+    assert st.presets == {4: ids["Alfa"]}
+
+
+def test_preset_ignored_while_reordering_or_confirming(env):
+    db, *_ = env
+    st = EditorState(db)
+    st.enter()
+    st.toggle_focus()
+    st.enter()  # reorder on
+    st.start_preset()
+    assert not st.awaiting_preset
+    st.enter()
+    st.toggle_focus()
+    st.delete()  # pending del? Alfa is in playlist -> bell, then try on Bravo
+    st.move(1)
+    st.delete()
+    assert st.pending == "del1"
+    st.start_preset()
+    assert not st.awaiting_preset
+
+
+def test_actions_are_blocked_while_waiting_for_a_preset_key(env):
+    db, *_ = env
+    st = EditorState(db)
+    st.start_preset()
+    before = (st.focus, st.left_idx, list(st.playlist_ids))
+    st.toggle_focus()
+    st.move(1)
+    st.enter()
+    st.delete()
+    st.remove()
+    st.request_quit()
+    st.save()
+    assert (st.focus, st.left_idx, st.playlist_ids) == before and not st.should_exit
+    assert st.awaiting_preset
+
+
+def test_deleting_a_video_drops_its_presets(env):
+    db, ids, _ = env
+    st = EditorState(db)
+    press(st, "p", "6")
+    st.save()
+    st.delete()
+    st.answer(True)
+    st.answer(True)
+    assert st.presets == {} and db.get_remote_presets() == {}
+    st.save()  # must not fail on the vanished video
+
+
+def test_badge_never_overflows_panel_width(env):
+    db, *_ = env
+    st = EditorState(db)
+    press(st, *"p1p2p3p4p5p6p7p8p9")
+    for line in st.render_panel(LEFT).plain.splitlines()[1:]:
+        assert len(line) <= 40
+    assert "[1,2,3,4,5,6,7,8,9]" in st.render_panel(LEFT).plain
+
+
+def test_footer_mentions_preset_key_and_fits_two_lines():
+    assert "[P] Preset" in S.UI_TUI_FOOTER and len(S.UI_TUI_FOOTER) <= 160
+
+
+def test_app_p_then_digit_flow_and_save(env):
+    db, ids, _ = env
+    _, _, _, exited = _run(db, ["p", "2", "s", "q"])
+    assert db.get_remote_presets()[2]["id"] == ids["Alfa"] and exited
+
+
+def test_app_keys_after_p_do_not_trigger_other_actions(env):
+    db, _, _ = env
+    _, msg, _, exited = _run(db, ["p", "q"])
+    assert not exited and msg == S.MSG_TUI_PRESET_INVALID
+
+
+def test_save_does_not_erase_presets_set_by_cli_meanwhile(env):
+    db, ids, _ = env
+    st = EditorState(db)  # opened with no presets
+    db.set_remote_preset(8, ids["Bravo"])  # CLI assigns while the editor is open
+    press(st, "p", "3")
+    st.save()
+    assert {k: v["id"] for k, v in db.get_remote_presets().items()} == {3: ids["Alfa"], 8: ids["Bravo"]}
+    assert st.presets == {3: ids["Alfa"], 8: ids["Bravo"]}
+
+
+def test_save_still_applies_removals_made_in_editor(env):
+    db, ids, _ = env
+    db.set_remote_presets({1: ids["Alfa"], 2: ids["Bravo"]})
+    st = EditorState(db)
+    press(st, "p", "0")  # clears Alfa
+    st.save()
+    assert list(db.get_remote_presets()) == [2]
+
+
+def test_editor_assignment_wins_over_concurrent_cli_on_same_key(env):
+    db, ids, _ = env
+    st = EditorState(db)
+    db.set_remote_preset(3, ids["Bravo"])
+    press(st, "p", "3")
+    st.save()
+    assert db.get_remote_presets()[3]["id"] == ids["Alfa"]

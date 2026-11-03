@@ -206,3 +206,83 @@ def test_set_playlist_rejects_unknown_and_duplicates_without_changes(db, tmp_pat
     with pytest.raises(ValueError):
         db.set_playlist([a, a])
     assert [r["id"] for r in db.get_playlist()] == [a]
+
+
+def test_remote_preset_roundtrip_and_update(db, tmp_path):
+    a, b, _ = add_videos(db, tmp_path)
+    assert db.get_remote_preset_video(3) is None
+    db.set_remote_preset(3, a)
+    assert db.get_remote_preset_video(3)["id"] == a
+    db.set_remote_preset(3, b)
+    assert db.get_remote_preset_video(3)["id"] == b
+
+
+@pytest.mark.parametrize("key", [0, 10, -1])
+def test_remote_preset_rejects_invalid_key(db, tmp_path, key):
+    a, *_ = add_videos(db, tmp_path)
+    with pytest.raises(ValueError):
+        db.set_remote_preset(key, a)
+
+
+def test_remote_preset_hidden_for_deleted_video(db, tmp_path):
+    a, *_ = add_videos(db, tmp_path)
+    db.set_remote_preset(1, a)
+    db.soft_delete_video(a, tmp_path / "trash")
+    assert db.get_remote_preset_video(1) is None
+
+
+def test_get_remote_presets_ordered_and_without_deleted(db, tmp_path):
+    a, b, c = add_videos(db, tmp_path)
+    db.set_remote_preset(5, b)
+    db.set_remote_preset(2, a)
+    presets = db.get_remote_presets()
+    assert list(presets) == [2, 5] and presets[5]["id"] == b
+    db.soft_delete_video(a, tmp_path / "trash")
+    assert list(db.get_remote_presets()) == [5]
+
+
+def test_clear_remote_preset(db, tmp_path):
+    a, *_ = add_videos(db, tmp_path)
+    db.set_remote_preset(4, a)
+    assert db.clear_remote_preset(4) is True
+    assert db.clear_remote_preset(4) is False
+    assert db.get_remote_preset_video(4) is None
+
+
+def test_set_remote_presets_replaces_everything_atomically(db, tmp_path):
+    a, b, c = add_videos(db, tmp_path)
+    db.set_remote_preset(1, a)
+    db.set_remote_presets({2: b, 3: b})
+    assert {k: v["id"] for k, v in db.get_remote_presets().items()} == {2: b, 3: b}
+    db.set_remote_presets({})
+    assert db.get_remote_presets() == {}
+
+
+def test_set_remote_presets_rolls_back_on_invalid_entry(db, tmp_path):
+    a, b, _ = add_videos(db, tmp_path)
+    db.set_remote_preset(1, a)
+    with pytest.raises(ValueError):
+        db.set_remote_presets({2: b, 10: a})
+    with pytest.raises(ValueError):
+        db.set_remote_presets({2: 9999})
+    assert list(db.get_remote_presets()) == [1]
+
+
+def test_set_remote_preset_rejects_unknown_or_deleted_video(db, tmp_path):
+    a, *_ = add_videos(db, tmp_path)
+    with pytest.raises(ValueError):
+        db.set_remote_preset(1, 9999)
+    db.soft_delete_video(a, tmp_path / "trash")
+    with pytest.raises(ValueError):
+        db.set_remote_preset(1, a)
+
+
+def test_soft_delete_drops_presets_of_the_video(db, tmp_path):
+    a, *_ = add_videos(db, tmp_path)
+    db.set_remote_presets({1: a, 9: a})
+    db.soft_delete_video(a, tmp_path / "trash")
+    conn = db.connect()
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM remote_presets").fetchone()[0] == 0
+    finally:
+        conn.close()

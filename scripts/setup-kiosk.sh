@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# Provision a minimal Debian 12 machine as an SVF Kiosk. Run as root.
+# Provision a minimal Debian 12 machine as an SVF Kiosk. Run as root:
+#   sudo ./scripts/setup-kiosk.sh
+#
+# Idempotent: every step can be re-run safely (mkdir -p, ln -sf, rsync, id checks).
+# Steps, in order: packages -> locale -> operator user -> X11/polkit config ->
+# data directories -> software + virtualenv -> systemd units.
+# Messages for the operator are Italian; X11 only (no Wayland).
 set -euo pipefail
 
 OPERATOR="svf-operatore"
@@ -7,11 +13,13 @@ INSTALL_DIR="/opt/svf-kiosk"
 DATA_DIR="/var/lib/svf-kiosk"
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Print an Italian error on stderr and abort.
 die() {
     printf '%s\n' "ERRORE: $*" >&2
     exit 1
 }
 
+# Print a progress line.
 step() {
     printf '%s\n' "==> $*"
 }
@@ -43,10 +51,12 @@ usermod -aG audio,video,input,render "${OPERATOR}"
 loginctl enable-linger "${OPERATOR}"
 
 step "Permessi X11 e montaggio USB"
+# Allow the unprivileged operator to start X (xinit) without root rights.
 cat > /etc/X11/Xwrapper.config <<'CONF'
 allowed_users=anybody
 needs_root_rights=no
 CONF
+# Let svf-operatore mount/unmount USB sticks with udisks2 without a password.
 cat > /etc/polkit-1/rules.d/50-svf-usb-mount.rules <<'CONF'
 polkit.addRule(function(action, subject) {
     if ((action.id == "org.freedesktop.udisks2.filesystem-mount" ||
@@ -61,6 +71,7 @@ step "Directory dati"
 mkdir -p "${DATA_DIR}"/{data,media/archive,media/incoming,trash,backups}
 chown -R "${OPERATOR}:${OPERATOR}" "${DATA_DIR}"
 chmod -R 775 "${DATA_DIR}"
+# /run is volatile: recreate the mpv socket directory at every boot.
 printf '%s\n' "d /run/svf-kiosk 0775 ${OPERATOR} ${OPERATOR} -" > /etc/tmpfiles.d/svf-kiosk.conf
 systemd-tmpfiles --create /etc/tmpfiles.d/svf-kiosk.conf
 
@@ -80,6 +91,7 @@ for tool in svf-playlist-editor svf-ingest svf-usb-sync svf-presets svf-status s
 done
 
 step "Servizi systemd"
+# svf-x11 is a system unit; svf-kiosk is a user unit (see its header comment).
 install -m 644 "${INSTALL_DIR}/scripts/systemd/svf-x11.service" /etc/systemd/system/svf-x11.service
 user_unit_dir="/home/${OPERATOR}/.config/systemd/user"
 sudo -u "${OPERATOR}" mkdir -p "${user_unit_dir}/default.target.wants"

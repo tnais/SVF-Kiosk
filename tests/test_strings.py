@@ -62,9 +62,10 @@ def test_source_file_is_valid_utf8():
     Path(mod.__file__).read_bytes().decode("utf-8")
 
 
-ALLOWED_PLACEHOLDERS = {"title", "device", "count", "path", "name", "index", "total",
+ALLOWED_PLACEHOLDERS = {"key", "id", "title", "device", "count", "path", "name", "index", "total",
                         "percent", "duration", "resolution", "codec", "channels",
-                        "length", "max", "done", "skipped", "error"}
+                        "length", "max", "done", "skipped", "error", "value", "used", "free",
+                        "temp", "address", "battery", "elapsed", "state"}
 ENGLISH_LEFTOVERS = re.compile(
     r"\b(the|error|failed|please|video not|loading|playing|saved|file not)\b", re.IGNORECASE)
 

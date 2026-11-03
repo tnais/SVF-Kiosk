@@ -1,17 +1,24 @@
+# SVF Kiosk player — USER unit of svf-operatore.
+# Installed by scripts/setup-kiosk.sh into ~/.config/systemd/user/ and started at
+# boot through lingering. It must stay a user unit: svf-restore restarts it with
+# "systemctl --user restart svf-kiosk.service".
 [Unit]
 Description=SVF Kiosk player (mpv + Bluetooth remote)
 After=svf-x11.service
 Wants=svf-x11.service
 
 [Service]
+# X11 only (Wayland is forbidden): the player talks to the display started by svf-x11.service.
 Type=simple
 Environment=DISPLAY=:0
 Environment=XAUTHORITY=/home/svf-operatore/.Xauthority
 Environment=PYTHONUNBUFFERED=1
 Environment=SVF_ROOT=/var/lib/svf-kiosk
 Environment=LANG=it_IT.UTF-8
+# Wait up to 60 s for the X11 socket, otherwise fail and let Restart= retry.
 ExecStartPre=/bin/sh -c 'i=0; while [ ! -S /tmp/.X11-unix/X0 ]; do i=$((i+1)); [ "$i" -gt 60 ] && exit 1; sleep 1; done'
 ExecStart=/opt/svf-kiosk/venv/bin/svf-kiosk-daemon
+# Watchdog at service level; mpv itself is supervised inside the daemon (3 s).
 Restart=always
 RestartSec=3
 

@@ -149,6 +149,70 @@ class Database:
             conn.close()
 
     @staticmethod
+    def _check_preset(conn: sqlite3.Connection, preset_key: int, video_id: int) -> None:
+        if not isinstance(preset_key, int) or not 1 <= preset_key <= 9:
+            raise ValueError("preset_key must be between 1 and 9")
+        found = conn.execute(
+            "SELECT 1 FROM videos WHERE id = ? AND is_deleted = 0", (video_id,)
+        ).fetchone()
+        if found is None:
+            raise ValueError(f"Video {video_id} not found")
+
+    def set_remote_preset(self, preset_key: int, video_id: int) -> None:
+        with self._transaction() as conn:
+            self._check_preset(conn, preset_key, video_id)
+            conn.execute(
+                "INSERT INTO remote_presets (preset_key, video_id) VALUES (?, ?)"
+                " ON CONFLICT(preset_key) DO UPDATE SET video_id = excluded.video_id",
+                (preset_key, video_id),
+            )
+
+    def clear_remote_preset(self, preset_key: int) -> bool:
+        """Remove the mapping of one key; return True if a mapping existed."""
+        with self._transaction() as conn:
+            cursor = conn.execute(
+                "DELETE FROM remote_presets WHERE preset_key = ?", (preset_key,)
+            )
+            return cursor.rowcount > 0
+
+    def get_remote_presets(self) -> dict[int, dict[str, Any]]:
+        """Return ``{key: video}`` for every key mapped to a non-deleted video."""
+        conn = self.connect()
+        try:
+            rows = conn.execute(
+                "SELECT r.preset_key AS preset_key, v.* FROM remote_presets r"
+                " JOIN videos v ON v.id = r.video_id WHERE v.is_deleted = 0"
+                " ORDER BY r.preset_key"
+            ).fetchall()
+            return {row["preset_key"]: dict(row) for row in rows}
+        finally:
+            conn.close()
+
+    def set_remote_presets(self, mapping: dict[int, int]) -> None:
+        """Atomically replace all presets with ``{key: video_id}``."""
+        with self._transaction() as conn:
+            for key, video_id in mapping.items():
+                self._check_preset(conn, key, video_id)
+            conn.execute("DELETE FROM remote_presets")
+            conn.executemany(
+                "INSERT INTO remote_presets (preset_key, video_id) VALUES (?, ?)",
+                sorted(mapping.items()),
+            )
+
+    def get_remote_preset_video(self, preset_key: int) -> dict[str, Any] | None:
+        """Return the non-deleted video mapped to a remote key, or None."""
+        conn = self.connect()
+        try:
+            row = conn.execute(
+                "SELECT v.* FROM remote_presets r JOIN videos v ON v.id = r.video_id"
+                " WHERE r.preset_key = ? AND v.is_deleted = 0",
+                (preset_key,),
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    @staticmethod
     def _playlist_ids(conn: sqlite3.Connection) -> list[int]:
         rows = conn.execute("SELECT video_id FROM playlist ORDER BY position").fetchall()
         return [r["video_id"] for r in rows]

@@ -11,23 +11,22 @@ dependencies = [
     "textual>=0.85.0",
     "pydantic>=2.10.0",
     "python-mpv-jsonipc>=1.1.1",
+    "evdev>=1.7.0; sys_platform == 'linux'",
     "pytest>=8.3.0",
 ]
 
 [project.scripts]
-svf-ingest = "cli.ingest:main"
-svf-usb-sync = "cli.usb_sync:main"
-svf-playlist-editor = "tui.playlist_editor:main"
-svf-kiosk-daemon = "daemon.kiosk_player:main"
-svf-status = "cli.status:main"
-svf-restore = "cli.restore:main"
-
-[tool.setuptools]
-package-dir = {"" = "src"}
+svf-ingest = "src.cli.ingest:main"
+svf-usb-sync = "src.cli.usb_sync:main"
+svf-playlist-editor = "src.tui.playlist_editor:main"
+svf-kiosk-daemon = "src.daemon.kiosk_player:main"
+svf-presets = "src.cli.presets:main"
+svf-status = "src.cli.status:main"
+svf-restore = "src.cli.restore:main"
 
 [tool.setuptools.packages.find]
-where = ["src"]
-include = ["core*", "models*", "db*", "cli*", "tui*", "daemon*"]
+where = ["."]
+include = ["src*"]
 
 [tool.setuptools.package-data]
-db = ["schema.sql"]
+"src.db" = ["schema.sql"]

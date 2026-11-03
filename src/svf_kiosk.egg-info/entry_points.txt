@@ -1,7 +1,0 @@
-[console_scripts]
-svf-ingest = cli.ingest:main
-svf-kiosk-daemon = daemon.kiosk_player:main
-svf-playlist-editor = tui.playlist_editor:main
-svf-restore = cli.restore:main
-svf-status = cli.status:main
-svf-usb-sync = cli.usb_sync:main
