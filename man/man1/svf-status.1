@@ -1,0 +1,30 @@
+.TH SVF-STATUS 1 "novembre 2026" "SVF Kiosk 2.0.0" "Manuale SVF Kiosk"
+.SH NOME
+svf-status \- mostra lo stato del chiosco
+.SH SINTASSI
+.B svf-status
+.SH DESCRIZIONE
+Visualizza un rapporto diagnostico con lo stato del lettore e del video in
+riproduzione, l'uso della memoria, la temperatura della CPU, lo spazio disco,
+il display X11 e la connessione Bluetooth del telecomando.
+.PP
+Il comando non modifica il sistema e non accetta opzioni.
+.SH VARIABILI D'AMBIENTE
+.TP
+.B SVF_ROOT
+Directory dei dati usata per rilevare lo spazio disco. Il valore predefinito
+è
+.IR /var/lib/svf-kiosk .
+.TP
+.B SVF_IPC_SOCK
+Percorso del socket IPC di
+.BR mpv (1);
+il valore predefinito è
+.IR /run/svf-kiosk/mpv.sock .
+.TP
+.B DISPLAY
+Display X11 da interrogare; se non impostato, viene usato
+.BR :0 .
+.SH VEDERE ANCHE
+.BR svf-kiosk-daemon (1),
+.BR svf-restore (1)

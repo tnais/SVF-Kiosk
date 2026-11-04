@@ -1,0 +1,57 @@
+.TH SVF-INGEST 1 "novembre 2026" "SVF Kiosk 2.0.0" "Manuale SVF Kiosk"
+.SH NOME
+svf-ingest \- importa nell'archivio i video in attesa
+.SH SINTASSI
+.B svf-ingest
+.RI [ \-\-force ]
+.SH DESCRIZIONE
+Esamina i video non ancora registrati presenti nella directory dei contenuti
+in arrivo. Per ogni file legge i metadati con
+.BR ffprobe (1),
+chiede titolo e descrizione e sposta il file nell'archivio, registrandolo nel
+database. Sono supportati i formati MP4, MKV, MOV e AVI.
+.PP
+Se il lettore è attivo, è possibile scegliere di mostrare un'anteprima sullo
+schermo principale. L'operazione viene rifiutata durante l'orario di visita
+oppure mentre è in corso la riproduzione ambientale, a meno che non si usi
+.BR \-\-force .
+Il titolo può contenere al massimo 38 caratteri e la descrizione 150.
+.SH OPZIONI
+.TP
+.B \-\-force
+Ignora il controllo dell'orario di visita e dello stato di riproduzione.
+.SH VARIABILI D'AMBIENTE
+.TP
+.B SVF_ROOT
+Directory dei dati. Il valore predefinito è
+.IR /var/lib/svf-kiosk .
+.TP
+.B SVF_IPC_SOCK
+Percorso del socket IPC di
+.BR mpv (1),
+usato per l'anteprima; il valore predefinito è
+.IR /run/svf-kiosk/mpv.sock .
+.SH FILE
+.TP
+.I $SVF_ROOT/media/incoming/
+Directory dei video da importare.
+.TP
+.I $SVF_ROOT/media/archive/
+Destinazione dei video importati.
+.TP
+.I $SVF_ROOT/data/svf_kiosk.db
+Database dell'archivio.
+.TP
+.I $SVF_ROOT/backups/
+Directory delle copie di sicurezza create durante l'importazione.
+.SH STATO DI USCITA
+.TP
+.B 0
+Importazione completata o nessun video in attesa.
+.TP
+.B 2
+Operazione rifiutata dal controllo dell'orario o della riproduzione.
+.SH VEDERE ANCHE
+.BR svf-usb-sync (1),
+.BR svf-status (1),
+.BR ffprobe (1)

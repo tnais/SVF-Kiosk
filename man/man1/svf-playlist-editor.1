@@ -1,0 +1,67 @@
+.TH SVF-PLAYLIST-EDITOR 1 "novembre 2026" "SVF Kiosk 2.0.0" "Manuale SVF Kiosk"
+.SH NOME
+svf-playlist-editor \- modifica la scaletta video e le associazioni del telecomando
+.SH SINTASSI
+.B svf-playlist-editor
+.SH DESCRIZIONE
+Apre l'editor interattivo a due pannelli: l'archivio dei video e la scaletta
+attiva. Le modifiche diventano effettive nel database soltanto dopo il
+salvataggio.
+.SH TASTI
+.TP
+.B Tab
+Sposta il fuoco tra archivio e scaletta. Non è disponibile durante il
+riordino o una richiesta di conferma.
+.TP
+.B Freccia su / Freccia giù
+Sposta la selezione. Nella scaletta, dopo aver premuto
+.BR Invio ,
+riordina il video selezionato; premere di nuovo
+.B Invio
+per terminare il riordino.
+.TP
+.B Invio
+Aggiunge il video selezionato nell'archivio alla scaletta oppure avvia e
+termina il riordino del video selezionato nella scaletta.
+.TP
+.B D
+Rimuove dalla scaletta il video selezionato.
+.TP
+.B C
+Elimina dall'archivio il video selezionato, dopo due conferme. Un video
+presente nella scaletta non può essere eliminato.
+.TP
+.B P
+Associa al video selezionato un tasto del telecomando: premere un tasto da
+.B 1
+a
+.BR 9 .
+Premere
+.B 0
+per rimuovere le associazioni del video selezionato.
+.TP
+.B S
+Salva la scaletta e le associazioni del telecomando nel database e aggiorna
+la copia JSON.
+.TP
+.B Q
+Esce dall'editor. Se ci sono modifiche non salvate, chiede conferma.
+.SH VARIABILI D'AMBIENTE
+.TP
+.B SVF_ROOT
+Directory dei dati. Il valore predefinito è
+.IR /var/lib/svf-kiosk .
+.SH FILE
+.TP
+.I $SVF_ROOT/data/svf_kiosk.db
+Database della scaletta, dell'archivio e delle associazioni del telecomando.
+.TP
+.I $SVF_ROOT/data/playlist.json
+Copia JSON aggiornata al salvataggio.
+.TP
+.I $SVF_ROOT/backups/
+Directory delle copie di sicurezza create prima e dopo il salvataggio.
+.SH VEDERE ANCHE
+.BR svf-ingest (1),
+.BR svf-presets (1),
+.BR svf-restore (1)
