@@ -1,0 +1,41 @@
+.TH SVF-KIOSK-DAEMON 1 "novembre 2026" "SVF Kiosk 2.0.0" "Manuale SVF Kiosk"
+.SH NOME
+svf-kiosk-daemon \- riproduce la scaletta e gestisce i comandi del telecomando
+.SH SINTASSI
+.B svf-kiosk-daemon
+.SH DESCRIZIONE
+Avvia il servizio di riproduzione di SVF Kiosk. Riproduce in ciclo i video
+della scaletta attiva e consente di avviare i video associati ai tasti da 1 a
+9 del telecomando. Alla fine di un video su richiesta, riprende dal video
+successivo della scaletta. Il servizio supervisiona
+.BR mpv (1)
+e lo riavvia se necessario.
+.PP
+Il comando non accetta opzioni. Per arrestare il servizio, usare il gestore
+di servizi invece di terminare manualmente il processo.
+.SH VARIABILI D'AMBIENTE
+.TP
+.B SVF_ROOT
+Directory dei dati. Il valore predefinito è
+.IR /var/lib/svf-kiosk .
+.TP
+.B SVF_IPC_SOCK
+Percorso del socket IPC di
+.BR mpv (1).
+Il valore predefinito è
+.IR /run/svf-kiosk/mpv.sock .
+.TP
+.B DISPLAY
+Display X11 usato per la riproduzione; in produzione è
+.BR :0 .
+.SH FILE
+.TP
+.I /var/lib/svf-kiosk/data/svf_kiosk.db
+Database della scaletta e delle associazioni del telecomando.
+.TP
+.I /run/svf-kiosk/mpv.sock
+Socket IPC predefinito del lettore.
+.SH VEDERE ANCHE
+.BR svf-playlist-editor (1),
+.BR svf-presets (1),
+.BR mpv (1)

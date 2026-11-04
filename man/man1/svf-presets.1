@@ -1,0 +1,65 @@
+.TH SVF-PRESETS 1 "novembre 2026" "SVF Kiosk 2.0.0" "Manuale SVF Kiosk"
+.SH NOME
+svf-presets \- gestisce le associazioni dei tasti del telecomando
+.SH SINTASSI
+.B svf-presets list
+.br
+.B svf-presets set
+.I tasto
+.RI [ titolo ]
+.RI [ \-\-id " ID" ]
+.br
+.B svf-presets clear
+.I tasto
+.SH DESCRIZIONE
+Associa i tasti numerici da 1 a 9 del telecomando ai video dell'archivio,
+elenca le associazioni esistenti o ne rimuove una. Il video può essere
+selezionato tramite titolo o identificativo numerico.
+.PP
+La ricerca per titolo non distingue maiuscole e minuscole: prima cerca una
+corrispondenza esatta, poi una corrispondenza parziale. Se la ricerca
+parziale trova più video, il comando mostra i candidati e non cambia
+l'associazione.
+.SH COMANDI
+.TP
+.B list
+Mostra le associazioni dei nove tasti.
+.TP
+.BI set " tasto " [ titolo ]
+Associa il tasto, compreso tra 1 e 9, al video indicato. Specificare il titolo
+oppure usare
+.BR \-\-id .
+.TP
+.BI clear " tasto"
+Rimuove l'associazione del tasto, compreso tra 1 e 9.
+.SH OPZIONI
+.TP
+.BI \-\-id " ID"
+Identificativo del video da associare. Può essere usato con
+.BR set ;
+in tal caso ha precedenza sul titolo.
+.TP
+.B \-h, \-\-help
+Mostra l'aiuto sintetico ed esce.
+.SH VARIABILI D'AMBIENTE
+.TP
+.B SVF_ROOT
+Directory dei dati. Il valore predefinito è
+.IR /var/lib/svf-kiosk .
+.SH FILE
+.TP
+.I $SVF_ROOT/data/svf_kiosk.db
+Database delle associazioni del telecomando.
+.TP
+.I $SVF_ROOT/backups/
+Directory delle copie di sicurezza create prima e dopo ogni modifica.
+.SH ESEMPI
+.EX
+svf-presets list
+svf-presets set 2 "Stazione"
+svf-presets set 3 --id 12
+svf-presets clear 2
+.EE
+.SH VEDERE ANCHE
+.BR svf-kiosk-daemon (1),
+.BR svf-playlist-editor (1)

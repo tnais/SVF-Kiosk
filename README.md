@@ -52,6 +52,9 @@ Installing the project exposes these command-line tools:
 | `svf-status` | Display kiosk and system status |
 | `svf-restore` | Restore a database backup |
 
+I manuali in italiano sono disponibili con `man <comando>` dopo
+l'installazione di produzione.
+
 Ingestion and USB synchronization are subject to visit-hour restrictions. For
 safe operation and full production installation instructions, refer to the
 guide linked above.

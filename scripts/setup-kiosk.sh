@@ -89,6 +89,8 @@ sudo -u "${OPERATOR}" env SVF_ROOT="${DATA_DIR}" \
 for tool in svf-playlist-editor svf-ingest svf-usb-sync svf-presets svf-status svf-restore; do
     ln -sf "${INSTALL_DIR}/venv/bin/${tool}" "/usr/local/bin/${tool}"
 done
+install -d /usr/local/share/man/man1
+install -m 644 "${INSTALL_DIR}"/man/man1/*.1 /usr/local/share/man/man1/
 
 step "Servizi systemd"
 # svf-x11 is a system unit; svf-kiosk is a user unit (see its header comment).

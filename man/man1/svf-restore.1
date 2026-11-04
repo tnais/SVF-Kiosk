@@ -1,0 +1,60 @@
+.TH SVF-RESTORE 1 "novembre 2026" "SVF Kiosk 2.0.0" "Manuale SVF Kiosk"
+.SH NOME
+svf-restore \- ripristina il database da una copia di sicurezza
+.SH SINTASSI
+.B svf-restore
+.RI [ \-\-force ]
+.SH DESCRIZIONE
+Mostra le copie di sicurezza disponibili, dalla più recente alla più
+vecchia, e permette di selezionarne una. Prima di procedere, richiede una
+conferma e crea una copia di sicurezza del database corrente. Dopo il
+ripristino aggiorna la copia JSON e riavvia il servizio del chiosco.
+.PP
+L'operazione viene rifiutata durante l'orario di visita o mentre è in corso
+la riproduzione ambientale, a meno che non si usi
+.BR \-\-force .
+.SH OPZIONI
+.TP
+.B \-\-force
+Ignora il controllo dell'orario di visita e dello stato di riproduzione.
+.TP
+.B \-h, \-\-help
+Mostra l'aiuto sintetico ed esce.
+.SH VARIABILI D'AMBIENTE
+.TP
+.B SVF_ROOT
+Directory dei dati. Il valore predefinito è
+.IR /var/lib/svf-kiosk .
+.TP
+.B SVF_IPC_SOCK
+Percorso del socket IPC di
+.BR mpv (1),
+usato per controllare lo stato di riproduzione; il valore predefinito è
+.IR /run/svf-kiosk/mpv.sock .
+.SH FILE
+.TP
+.I $SVF_ROOT/backups/
+Directory delle copie di sicurezza.
+.TP
+.I $SVF_ROOT/data/svf_kiosk.db
+Database ripristinato.
+.TP
+.I $SVF_ROOT/data/playlist.json
+Copia JSON aggiornata dopo il ripristino.
+.SH STATO DI USCITA
+.TP
+.B 0
+Ripristino completato oppure annullato.
+.TP
+.B 1
+Nessuna copia disponibile, copia non valida o errore durante il ripristino.
+.TP
+.B 2
+Operazione rifiutata dal controllo dell'orario o della riproduzione.
+.TP
+.B 130
+Operazione interrotta da
+.BR Ctrl-C .
+.SH VEDERE ANCHE
+.BR svf-status (1),
+.BR svf-playlist-editor (1)

@@ -1,0 +1,65 @@
+.TH SVF-USB-SYNC 1 "novembre 2026" "SVF Kiosk 2.0.0" "Manuale SVF Kiosk"
+.SH NOME
+svf-usb-sync \- copia i video da un supporto USB
+.SH SINTASSI
+.B svf-usb-sync
+.RI [ \-\-device
+.IR partizione ]
+.RI [ \-\-force ]
+.SH DESCRIZIONE
+Monta una partizione USB, cerca ricorsivamente i video MP4, MKV, MOV e AVI e
+copia quelli nuovi nella directory dei contenuti in arrivo. I duplicati già
+presenti nell'archivio o nella directory di arrivo vengono ignorati.
+Al termine, il supporto viene smontato.
+.PP
+Se non si specifica una partizione, il comando seleziona la prima partizione
+rilevata tra i dispositivi
+.IR /dev/sd* .
+Il montaggio e lo smontaggio usano
+.BR udisksctl (1)
+senza privilegi di root. L'operazione viene rifiutata durante l'orario di
+visita o mentre è in corso la riproduzione ambientale, salvo uso di
+.BR \-\-force .
+.SH OPZIONI
+.TP
+.BI \-\-device " partizione"
+Partizione da usare, per esempio
+.IR /dev/sdb1 .
+.TP
+.B \-\-force
+Ignora il controllo dell'orario di visita e dello stato di riproduzione.
+.SH VARIABILI D'AMBIENTE
+.TP
+.B SVF_ROOT
+Directory dei dati. Il valore predefinito è
+.IR /var/lib/svf-kiosk .
+.TP
+.B SVF_IPC_SOCK
+Percorso del socket IPC di
+.BR mpv (1),
+usato per controllare lo stato di riproduzione; il valore predefinito è
+.IR /run/svf-kiosk/mpv.sock .
+.SH FILE
+.TP
+.I $SVF_ROOT/media/incoming/
+Destinazione dei video copiati.
+.TP
+.I $SVF_ROOT/media/archive/
+Directory controllata per evitare di copiare video già archiviati.
+.SH STATO DI USCITA
+.TP
+.B 0
+Copia completata.
+.TP
+.B 1
+Nessun dispositivo disponibile o errore di montaggio, copia o smontaggio.
+.TP
+.B 2
+Operazione rifiutata dal controllo dell'orario o della riproduzione.
+.SH ESEMPIO
+.EX
+svf-usb-sync --device /dev/sdb1
+.EE
+.SH VEDERE ANCHE
+.BR svf-ingest (1),
+.BR udisksctl (1)
