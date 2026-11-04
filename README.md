@@ -1,6 +1,6 @@
 # SVF Kiosk
 
-SVF Kiosk is a multimedia kiosk application for a railway museum. It manages an
+SVF Kiosk is a multimedia kiosk application for a small (railway) museum. It manages an
 archival video playlist, supports operator-guided video ingestion, and provides
 continuous playback with on-demand video selection from a Bluetooth remote.
 Operator-facing messages and tools are in Italian.
