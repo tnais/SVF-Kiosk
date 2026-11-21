@@ -1,8 +1,6 @@
-# CI per un progetto Maven con wrapper (Java 25, Spring Boot 4.1.1).
-# Compila e testa a ogni push su master e a ogni pull request verso master,
-# poi conserva il jar come artifact del run.
-# Versioni delle action verificate il 6/11/2026: checkout v7, setup-java v6,
-# upload-artifact v7.
+# CI per SVF-Kiosk (Python 3.11+).
+# Installa il progetto, esegue i test e crea un wheel a ogni push o pull request
+# verso master.
 name: CI
 
 on:
@@ -23,26 +21,30 @@ concurrency:
 
 jobs:
   build:
-    name: Build e test       # è il nome del check da rendere obbligatorio nel ruleset
+    name: Test e build Python
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false            # una gamba rossa non ferma le altre
+      fail-fast: false
       matrix:
-        java: ['21', '25']
-    timeout-minutes: 15      # il default è 360: meglio fermare prima un run bloccato
+        python: ['3.11', '3.12']
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-java@v6
+      - uses: actions/setup-python@v6
         with:
-          distribution: temurin
-          java-version: ${{ matrix.java }}
-          cache: maven       # salva e ripristina ~/.m2/repository tra un run e l'altro
-      - name: Build e test
-        run: mvn -B verify -Djava.version=${{ matrix.java }}
-      - name: Jar come artifact
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Installa progetto e strumenti di build
+        run: python -m pip install --editable . build
+      - name: Esegui i test
+        run: python -m pytest tests/
+      - name: Crea il pacchetto wheel
+        run: python -m build --wheel
+      - name: Wheel come artifact
         uses: actions/upload-artifact@v7
         with:
-          name: integrazione_continua_${{ matrix.java }}
-          path: target/*.jar
-          if-no-files-found: error   # il default è warn: senza jar il job resterebbe verde
+          name: svf-kiosk-python-${{ matrix.python }}
+          path: dist/*.whl
+          if-no-files-found: error
           retention-days: 7
