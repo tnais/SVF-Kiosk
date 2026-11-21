@@ -1,0 +1,48 @@
+# CI per un progetto Maven con wrapper (Java 25, Spring Boot 4.1.1).
+# Compila e testa a ogni push su main e a ogni pull request verso main,
+# poi conserva il jar come artifact del run.
+# Versioni delle action verificate il 6/11/2026: checkout v7, setup-java v6,
+# upload-artifact v7.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:        # pulsante "Run workflow" nella scheda Actions
+
+# Il GITHUB_TOKEN del run può solo leggere il codice: alla CI non serve altro.
+permissions:
+  contents: read
+
+# Un push nuovo sulla stessa branch annulla il run vecchio ancora in corso.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build e test       # è il nome del check da rendere obbligatorio nel ruleset
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false            # una gamba rossa non ferma le altre
+      matrix:
+        java: ['21', '25']
+    timeout-minutes: 15      # il default è 360: meglio fermare prima un run bloccato
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven       # salva e ripristina ~/.m2/repository tra un run e l'altro
+      - name: Build e test
+        run: mvn -B verify -Djava.version=${{ matrix.java }}
+      - name: Jar come artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: integrazione_continua_${{ matrix.java }}
+          path: target/*.jar
+          if-no-files-found: error   # il default è warn: senza jar il job resterebbe verde
+          retention-days: 7
