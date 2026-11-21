@@ -1,5 +1,5 @@
 # CI per un progetto Maven con wrapper (Java 25, Spring Boot 4.1.1).
-# Compila e testa a ogni push su main e a ogni pull request verso main,
+# Compila e testa a ogni push su master e a ogni pull request verso master,
 # poi conserva il jar come artifact del run.
 # Versioni delle action verificate il 6/11/2026: checkout v7, setup-java v6,
 # upload-artifact v7.
@@ -7,9 +7,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
   workflow_dispatch:        # pulsante "Run workflow" nella scheda Actions
 
 # Il GITHUB_TOKEN del run può solo leggere il codice: alla CI non serve altro.
