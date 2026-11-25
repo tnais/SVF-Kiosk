@@ -16,6 +16,45 @@ le dipendenze, il software e i servizi di avvio.
 
 SVF Kiosk usa esclusivamente X11: non installare né configurare Wayland.
 
+## Dipendenze necessarie
+
+Prima di installare SVF Kiosk, assicurarsi che Debian disponga dei pacchetti
+di sistema necessari per X11, la riproduzione video, il database, il
+telecomando Bluetooth e la sincronizzazione USB:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends \
+  xorg xserver-xorg xinit x11-xserver-utils unclutter \
+  mpv ffmpeg sqlite3 python3 python3-venv python3-pip \
+  udisks2 bluez locales rsync git
+```
+
+Le dipendenze Python sono elencate in
+[`requirements.txt`](../../requirements.txt):
+
+| Pacchetto | Versione minima | Utilizzo |
+| --- | ---: | --- |
+| `textual` | 0.85.0 | Interfaccia testuale dell'editor della scaletta |
+| `pydantic` | 2.10.0 | Validazione dei metadati e dello stato del kiosk |
+| `python-mpv-jsonipc` | 1.1.1 | Comunicazione JSON-IPC con `mpv` |
+| `evdev` | 1.7.0 | Lettura del telecomando Bluetooth su Linux |
+| `pytest` | 8.3.0 | Esecuzione della suite di test |
+
+Per una configurazione di sviluppo locale, creare un ambiente virtuale e
+installare l'elenco completo:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -r requirements.txt
+```
+
+Lo script `scripts/setup-kiosk.sh` installa automaticamente i pacchetti di
+sistema e crea un ambiente Python dedicato in `/opt/svf-kiosk/venv` durante il
+provisioning. In produzione, eseguire quindi lo script descritto nella sezione
+successiva invece di installare manualmente l'applicazione nel sistema.
+
 ## Installazione
 
 Accedere al computer con l'account amministrativo e installare Git:
