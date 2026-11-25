@@ -20,10 +20,12 @@ def find_videos(videos: list[dict[str, Any]], query: str) -> list[dict[str, Any]
 
 
 def parse_key(value: str) -> int | None:
+    """Produce the result for parse key."""
     return int(value) if value.isdigit() and 1 <= int(value) <= 9 else None
 
 
 def cmd_list(db: Database, out=print) -> int:
+    """Handle cmd list operations."""
     presets = db.get_remote_presets()
     out(S.MSG_PRESETS_HEADER)
     for key in range(1, 10):
@@ -37,6 +39,7 @@ def cmd_list(db: Database, out=print) -> int:
 
 def cmd_set(db: Database, key_text: str, title: str | None, video_id: int | None,
             out=print, err=print) -> int:
+    """Handle cmd set operations."""
     key = parse_key(key_text)
     if key is None:
         err(S.MSG_PRESETS_BAD_KEY)
@@ -66,6 +69,7 @@ def cmd_set(db: Database, key_text: str, title: str | None, video_id: int | None
 
 
 def cmd_clear(db: Database, key_text: str, out=print, err=print) -> int:
+    """Handle cmd clear operations."""
     key = parse_key(key_text)
     if key is None:
         err(S.MSG_PRESETS_BAD_KEY)
@@ -79,6 +83,7 @@ def cmd_clear(db: Database, key_text: str, out=print, err=print) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the presets command-line entry point."""
     parser = argparse.ArgumentParser(prog="svf-presets")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("list")

@@ -47,6 +47,7 @@ def mount_device(device: str) -> str:
 
 
 def unmount_device(device: str) -> None:
+    """Handle unmount device operations."""
     result = subprocess.run(
         ["udisksctl", "unmount", "-b", device], capture_output=True, text=True
     )
@@ -55,6 +56,7 @@ def unmount_device(device: str) -> None:
 
 
 def find_videos(mount_point: str | os.PathLike[str]) -> list[Path]:
+    """Return data for find videos."""
     found = [
         p
         for p in Path(mount_point).rglob("*")
@@ -66,6 +68,7 @@ def find_videos(mount_point: str | os.PathLike[str]) -> list[Path]:
 
 
 def _already_present(src: Path, folders: list[Path]) -> bool:
+    """Handle already present operations."""
     size = src.stat().st_size
     return any(
         (f / src.name).is_file() and (f / src.name).stat().st_size == size
@@ -106,6 +109,7 @@ def copy_new_videos(
 
 
 def _print_progress(message: str) -> None:
+    """Handle print progress operations."""
     print("\r" + message, end="", flush=True)
 
 
@@ -137,6 +141,7 @@ def sync_device(device: str, root: Path, out: Callable[[str], None] = print) -> 
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the usb_sync command-line entry point."""
     parser = argparse.ArgumentParser(prog="svf-usb-sync")
     parser.add_argument("--device", help="partizione da usare, es. /dev/sdb1")
     parser.add_argument("--force", action="store_true", help="ignora il controllo orario di visita")

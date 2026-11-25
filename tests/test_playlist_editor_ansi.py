@@ -22,6 +22,7 @@ ALLOWED_SGR = set(range(0, 10)) | {22, 23, 24, 25, 27, 28, 29, 39, 49} | set(ran
 
 @pytest.fixture
 def root(tmp_path):
+    """Handle root operations."""
     db = Database(tmp_path)
     for name in ("Delta", "Alfa", "Charlie", "Bravo"):
         f = tmp_path / f"{name}.mp4"
@@ -31,6 +32,7 @@ def root(tmp_path):
 
 
 def run_editor(root, term, keys=(b"\r", b"\t", b"\r"), colorterm=None):
+    """Handle run editor operations."""
     env = {k: v for k, v in os.environ.items() if k not in ("COLORTERM", "NO_COLOR", "FORCE_COLOR")}
     env.update(TERM=term, SVF_ROOT=str(root), LANG="it_IT.UTF-8", PYTHONIOENCODING="utf-8")
     if colorterm:
@@ -41,6 +43,7 @@ def run_editor(root, term, keys=(b"\r", b"\t", b"\r"), colorterm=None):
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
 
     def read(seconds):
+        """Handle read operations."""
         out, end = b"", time.time() + seconds
         while time.time() < end:
             if select.select([fd], [], [], 0.1)[0]:
@@ -66,6 +69,7 @@ def run_editor(root, term, keys=(b"\r", b"\t", b"\r"), colorterm=None):
 
 
 def sgr_params(raw):
+    """Handle sgr params operations."""
     params = []
     for m in CSI.finditer(raw):
         if m.group(3) == b"m" and not m.group(1).startswith((b"?", b"<", b"=", b">")):
@@ -75,6 +79,7 @@ def sgr_params(raw):
 
 @pytest.mark.parametrize("term", ["linux", "vt100", "xterm"])
 def test_only_basic_ecma48_sgr_without_colorterm(root, term):
+    """Verify only basic ecma48 sgr without colorterm."""
     raw = run_editor(root, term)
     assert b"Archivio Video" in raw
     bad = sorted(set(sgr_params(raw)) - ALLOWED_SGR)
@@ -84,6 +89,7 @@ def test_only_basic_ecma48_sgr_without_colorterm(root, term):
 
 
 def test_no_8bit_c1_controls_and_valid_utf8(root):
+    """Verify no 8bit c1 controls and valid utf8."""
     raw = run_editor(root, "vt100")
     text = raw.decode("utf-8")
     assert not any("\x80" <= ch <= "\x9f" for ch in text)
@@ -91,6 +97,7 @@ def test_no_8bit_c1_controls_and_valid_utf8(root):
 
 
 def test_every_escape_is_well_formed_csi_or_known(root):
+    """Verify every escape is well formed csi or known."""
     raw = run_editor(root, "linux")
     stripped = CSI.sub(b"", raw)
     leftovers = re.findall(rb"\x1b[^\x07\x1b]{0,3}", stripped)
@@ -100,6 +107,7 @@ def test_every_escape_is_well_formed_csi_or_known(root):
 
 
 def test_blue_and_green_use_standard_colour_codes_on_ansi(root):
+    """Verify blue and green use standard colour codes on ansi."""
     raw = run_editor(root, "linux")
     params = set(sgr_params(raw))
     assert params & set(range(40, 48)) or params & set(range(30, 38)), "no colours emitted at all"
@@ -107,5 +115,6 @@ def test_blue_and_green_use_standard_colour_codes_on_ansi(root):
 
 
 def test_truecolor_terminal_still_gets_rgb(root):
+    """Verify truecolor terminal still gets rgb."""
     raw = run_editor(root, "xterm-256color", colorterm="truecolor")
     assert b"38;2" in raw or b"48;2" in raw

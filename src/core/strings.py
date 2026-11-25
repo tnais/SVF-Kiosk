@@ -2,6 +2,7 @@
 
 
 class ItalianStrings:
+    """Encapsulate italian strings behavior."""
     MSG_BOOT_START = "Avvio sistema SVF-Kiosk in corso..."
     MSG_BOOT_EMPTY = "Nessun video presente nella scaletta. Rivolgersi all'operatore."
     MSG_OSD_TRIGGER = "▶ Riproduzione richiesta: {title}"

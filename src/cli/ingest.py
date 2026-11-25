@@ -66,6 +66,7 @@ def sanitize_filename(name: str) -> str:
 
 
 def unique_destination(archive: Path, name: str) -> Path:
+    """Handle unique destination operations."""
     candidate = archive / name
     counter = 1
     while candidate.exists():
@@ -75,6 +76,7 @@ def unique_destination(archive: Path, name: str) -> Path:
 
 
 def find_unindexed(incoming: Path) -> list[Path]:
+    """Return data for find unindexed."""
     if not incoming.is_dir():
         return []
     return sorted(
@@ -84,6 +86,7 @@ def find_unindexed(incoming: Path) -> list[Path]:
 
 
 def ask_title(input_fn: Callable[[str], str], out: Callable[[str], None]) -> str:
+    """Handle ask title operations."""
     while True:
         title = input_fn(S.MSG_INGEST_TITLE_PROMPT.format(max=MAX_TITLE)).strip()
         if not title:
@@ -95,6 +98,7 @@ def ask_title(input_fn: Callable[[str], str], out: Callable[[str], None]) -> str
 
 
 def ask_description(input_fn: Callable[[str], str], out: Callable[[str], None]) -> str:
+    """Handle ask description operations."""
     while True:
         text = input_fn(S.MSG_INGEST_DESC_PROMPT.format(max=MAX_DESCRIPTION)).strip()
         if len(text) > MAX_DESCRIPTION:
@@ -149,6 +153,7 @@ def run_ingest(
     out: Callable[[str], None] = print,
     client: MpvClient | None = None,
 ) -> tuple[int, int]:
+    """Handle run ingest operations."""
     incoming = root / "media" / "incoming"
     archive = root / "media" / "archive"
     files = find_unindexed(incoming)
@@ -176,6 +181,7 @@ def run_ingest(
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the ingest command-line entry point."""
     parser = argparse.ArgumentParser(prog="svf-ingest")
     parser.add_argument("--force", action="store_true", help="ignora il controllo orario di visita")
     args = parser.parse_args(argv)

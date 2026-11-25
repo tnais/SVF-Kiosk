@@ -1,3 +1,5 @@
+"""Python implementation for test mpv client."""
+
 import json
 import os
 import socket
@@ -12,7 +14,9 @@ from src.core.mpv_client import MpvClient, MpvIpcError
 
 
 class MockMpv:
+    """Encapsulate mock mpv behavior."""
     def __init__(self, path, props=None):
+        """Initialize the instance."""
         self.path = path
         self.props = props or {}
         self.commands = []
@@ -24,6 +28,7 @@ class MockMpv:
         self.thread.start()
 
     def _loop(self):
+        """Handle loop operations."""
         while not self.stop:
             try:
                 conn, _ = self.srv.accept()
@@ -46,18 +51,21 @@ class MockMpv:
                 conn.sendall((json.dumps(reply) + "\n").encode())
 
     def close(self):
+        """Handle close operations."""
         self.stop = True
         self.srv.close()
 
 
 @pytest.fixture
 def mock(tmp_path):
+    """Handle mock operations."""
     m = MockMpv(str(tmp_path / "mpv.sock"))
     yield m
     m.close()
 
 
 def test_missing_socket_raises(tmp_path):
+    """Verify missing socket raises."""
     client = MpvClient(str(tmp_path / "none.sock"))
     assert client.is_running() is False
     with pytest.raises(MpvIpcError):
@@ -65,11 +73,13 @@ def test_missing_socket_raises(tmp_path):
 
 
 def test_env_socket(monkeypatch, tmp_path):
+    """Verify env socket."""
     monkeypatch.setenv("SVF_IPC_SOCK", str(tmp_path / "x.sock"))
     assert MpvClient().socket_path.endswith("x.sock")
 
 
 def test_is_running_and_commands(mock):
+    """Verify is running and commands."""
     client = MpvClient(mock.path)
     mock.props["idle-active"] = False
     assert client.is_running()
@@ -85,6 +95,7 @@ def test_is_running_and_commands(mock):
 
 
 def test_load_playlist(mock):
+    """Verify load playlist."""
     MpvClient(mock.path).load_playlist(["/a.mp4", "/b.mp4", "/c.mp4"])
     assert mock.commands == [
         ["playlist-clear"],
@@ -95,6 +106,7 @@ def test_load_playlist(mock):
 
 
 def test_status(mock):
+    """Verify status."""
     mock.props.update({"path": "/a.mp4", "time-pos": 4.5, "duration": 60.0, "pause": True,
                        "idle-active": False})
     assert MpvClient(mock.path).get_playback_status() == {
@@ -102,11 +114,13 @@ def test_status(mock):
 
 
 def test_error_reply(mock):
+    """Verify error reply."""
     with pytest.raises(MpvIpcError):
         MpvClient(mock.path).get_property("nope")
 
 
 def test_play_preview_restores(mock, monkeypatch):
+    """Verify play preview restores."""
     mock.props.update({"path": "/amb.mp4", "time-pos": 10.0, "duration": 60.0,
                        "pause": False, "idle-active": False})
     monkeypatch.setattr("src.core.mpv_client.time.sleep", lambda s: None)
@@ -117,12 +131,14 @@ def test_play_preview_restores(mock, monkeypatch):
 
 
 def test_async(mock):
+    """Verify async."""
     import asyncio
     mock.props["idle-active"] = False
     assert asyncio.run(MpvClient(mock.path).acommand("get_property", "idle-active")) is False
 
 
 def test_timeout_raises(tmp_path):
+    """Verify timeout raises."""
     path = str(tmp_path / "slow.sock")
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     srv.bind(path)
@@ -135,12 +151,14 @@ def test_timeout_raises(tmp_path):
 
 
 def test_connection_closed_mid_reply(tmp_path):
+    """Verify connection closed mid reply."""
     path = str(tmp_path / "close.sock")
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     srv.bind(path)
     srv.listen(1)
 
     def serve():
+        """Handle serve operations."""
         conn, _ = srv.accept()
         conn.recv(1024)
         conn.close()
@@ -154,22 +172,26 @@ def test_connection_closed_mid_reply(tmp_path):
 
 
 def test_load_empty_playlist(mock):
+    """Verify load empty playlist."""
     MpvClient(mock.path).load_playlist([])
     assert mock.commands == [["playlist-clear"], ["stop"]]
 
 
 def test_status_raises_when_down(tmp_path):
+    """Verify status raises when down."""
     with pytest.raises(MpvIpcError):
         MpvClient(str(tmp_path / "x.sock")).get_playback_status()
 
 
 def test_preview_restores_when_load_fails(mock, monkeypatch):
+    """Verify preview restores when load fails."""
     mock.props.update({"path": "/amb.mp4", "time-pos": 2.0, "duration": 9.0,
                        "pause": False, "idle-active": False})
     client = MpvClient(mock.path)
     real = client.load_file
 
     def boom(path, mode="replace"):
+        """Handle boom operations."""
         raise MpvIpcError("fail")
 
     monkeypatch.setattr(client, "load_file", boom)
@@ -180,6 +202,7 @@ def test_preview_restores_when_load_fails(mock, monkeypatch):
 
 @pytest.mark.skipif(shutil.which("mpv") is None, reason="mpv not installed")
 def test_real_mpv_loadfile_with_options(tmp_path):
+    """Verify real mpv loadfile with options."""
     sock = str(tmp_path / "real.sock")
     proc = subprocess.Popen(
         ["mpv", "--idle=yes", "--vo=null", "--ao=null", "--no-config",
@@ -209,6 +232,7 @@ def _serve_raw(tmp_path, raw_chunks):
     seen = {}
 
     def serve():
+        """Handle serve operations."""
         conn, _ = srv.accept()
         with conn:
             req = json.loads(conn.recv(65536).decode())
@@ -221,6 +245,7 @@ def _serve_raw(tmp_path, raw_chunks):
 
 
 def test_skips_events_malformed_lines_and_foreign_ids(tmp_path):
+    """Verify skips events malformed lines and foreign ids."""
     path, srv, _ = _serve_raw(tmp_path, [
         b'{"event":"file-loaded"}\n',
         b'not json at all\n',
@@ -235,6 +260,7 @@ def test_skips_events_malformed_lines_and_foreign_ids(tmp_path):
 
 
 def test_reply_split_across_chunks(tmp_path):
+    """Verify reply split across chunks."""
     path, srv, _ = _serve_raw(tmp_path, [b'{"request_id":{rid},"er', b'ror":"success","data":7}\n'])
     try:
         assert MpvClient(path, timeout=1).command("get_property", "x") == 7
@@ -243,6 +269,7 @@ def test_reply_split_across_chunks(tmp_path):
 
 
 def test_osd_text_is_utf8_encoded(tmp_path):
+    """Verify osd text is utf8 encoded."""
     path, srv, seen = _serve_raw(tmp_path, [b'{"request_id":{rid},"error":"success"}\n'])
     try:
         MpvClient(path, timeout=1).show_osd("▶ Riproduzione richiesta: Locomotiva è già", 2500)
@@ -252,6 +279,7 @@ def test_osd_text_is_utf8_encoded(tmp_path):
 
 
 def test_request_ids_increment(mock):
+    """Verify request ids increment."""
     client = MpvClient(mock.path)
     mock.props["idle-active"] = False
     client.get_property("idle-active")
@@ -260,11 +288,13 @@ def test_request_ids_increment(mock):
 
 
 def test_default_socket_path(monkeypatch):
+    """Verify default socket path."""
     monkeypatch.delenv("SVF_IPC_SOCK", raising=False)
     assert MpvClient().socket_path == "/run/svf-kiosk/mpv.sock"
 
 
 def test_preview_keeps_paused_state_of_ambient(mock, monkeypatch):
+    """Verify preview keeps paused state of ambient."""
     mock.props.update({"path": "/amb.mp4", "time-pos": 5.0, "duration": 30.0,
                        "pause": True, "idle-active": False})
     monkeypatch.setattr("src.core.mpv_client.time.sleep", lambda s: None)
@@ -275,6 +305,7 @@ def test_preview_keeps_paused_state_of_ambient(mock, monkeypatch):
 
 
 def test_preview_with_idle_player_stops_afterwards(mock, monkeypatch):
+    """Verify preview with idle player stops afterwards."""
     mock.props.update({"idle-active": True})
     monkeypatch.setattr("src.core.mpv_client.time.sleep", lambda s: None)
     MpvClient(mock.path).play_preview("/prev.mp4", 1)
@@ -282,6 +313,7 @@ def test_preview_with_idle_player_stops_afterwards(mock, monkeypatch):
 
 
 def test_preview_sleeps_requested_duration(mock, monkeypatch):
+    """Verify preview sleeps requested duration."""
     mock.props.update({"path": "/a.mp4", "time-pos": 1.0, "duration": 9.0,
                        "pause": False, "idle-active": False})
     sleeps = []

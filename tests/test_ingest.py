@@ -1,3 +1,5 @@
+"""Python implementation for test ingest."""
+
 import json
 import subprocess
 from pathlib import Path
@@ -20,14 +22,17 @@ FFPROBE_OK = json.dumps({
 
 
 def completed(stdout="", returncode=0, stderr=""):
+    """Handle completed operations."""
     return subprocess.CompletedProcess([], returncode, stdout, stderr)
 
 
 def scripted(answers):
+    """Handle scripted operations."""
     it = iter(answers)
     prompts = []
 
     def fn(prompt):
+        """Handle fn operations."""
         prompts.append(prompt)
         return next(it)
 
@@ -38,6 +43,7 @@ def scripted(answers):
 # ------------------------------------------------------------------- ingest
 
 def test_probe_video_parses_ffprobe_json():
+    """Verify probe video parses ffprobe json."""
     with mock.patch("subprocess.run", return_value=completed(FFPROBE_OK)) as run:
         info = ingest.probe_video("/x/a.mp4")
     assert info == {"duration_seconds": 62, "resolution": "1920x1080",
@@ -46,6 +52,7 @@ def test_probe_video_parses_ffprobe_json():
 
 
 def test_probe_video_errors():
+    """Verify probe video errors."""
     with mock.patch("subprocess.run", side_effect=FileNotFoundError):
         with pytest.raises(ingest.ProbeError, match="ffprobe"):
             ingest.probe_video("a.mp4")
@@ -58,12 +65,14 @@ def test_probe_video_errors():
 
 
 def test_sanitize_filename():
+    """Verify sanitize filename."""
     assert ingest.sanitize_filename("Locomotiva è già così.MP4") == "Locomotiva_e_gia_cosi.mp4"
     assert ingest.sanitize_filename("../../x y.mkv") == "x_y.mkv"
     assert ingest.sanitize_filename("???.mp4") == "video.mp4"
 
 
 def test_unique_destination(tmp_path):
+    """Verify unique destination."""
     (tmp_path / "a.mp4").touch()
     assert ingest.unique_destination(tmp_path, "a.mp4").name == "a__1.mp4"
     (tmp_path / "a__1.mp4").touch()
@@ -71,6 +80,7 @@ def test_unique_destination(tmp_path):
 
 
 def test_title_and_description_validation_loops():
+    """Verify title and description validation loops."""
     out = []
     title = ingest.ask_title(scripted(["", "x" * 39, "  Titolo  "]), out.append)
     assert title == "Titolo"
@@ -83,6 +93,7 @@ def test_title_and_description_validation_loops():
 
 
 def make_incoming(tmp_path, *names):
+    """Produce the result for make incoming."""
     incoming = tmp_path / "media" / "incoming"
     incoming.mkdir(parents=True)
     for n in names:
@@ -91,6 +102,7 @@ def make_incoming(tmp_path, *names):
 
 
 def test_run_ingest_full_flow(tmp_path):
+    """Verify run ingest full flow."""
     incoming = make_incoming(tmp_path, "Mio Film.mp4", "note.txt")
     out = []
     answers = scripted(["Il mio film", "Una descrizione"])
@@ -111,12 +123,14 @@ def test_run_ingest_full_flow(tmp_path):
 
 
 def test_run_ingest_nothing_to_do(tmp_path):
+    """Verify run ingest nothing to do."""
     out = []
     assert ingest.run_ingest(tmp_path, scripted([]), out.append) == (0, 0)
     assert "Nessun filmato" in out[0]
 
 
 def test_run_ingest_skips_unprobeable_file(tmp_path):
+    """Verify run ingest skips unprobeable file."""
     incoming = make_incoming(tmp_path, "bad.mp4")
     with mock.patch("subprocess.run", return_value=completed("", 1)):
         assert ingest.run_ingest(tmp_path, scripted([]), lambda m: None) == (0, 1)
@@ -124,6 +138,7 @@ def test_run_ingest_skips_unprobeable_file(tmp_path):
 
 
 def test_preview_accepted_calls_play_preview(tmp_path):
+    """Verify preview accepted calls play preview."""
     make_incoming(tmp_path, "a.mp4")
     client = mock.Mock()
     answers = scripted(["S", "Titolo", ""])
@@ -134,6 +149,7 @@ def test_preview_accepted_calls_play_preview(tmp_path):
 
 
 def test_preview_declined_and_failure_do_not_block(tmp_path):
+    """Verify preview declined and failure do not block."""
     make_incoming(tmp_path, "a.mp4", "b.mp4")
     client = mock.Mock()
     client.play_preview.side_effect = MpvIpcError("down")
@@ -147,6 +163,7 @@ def test_preview_declined_and_failure_do_not_block(tmp_path):
 
 
 def test_db_failure_restores_file_and_still_runs_post_backup(tmp_path):
+    """Verify db failure restores file and still runs post backup."""
     incoming = make_incoming(tmp_path, "a.mp4")
     with mock.patch("subprocess.run", return_value=completed(FFPROBE_OK)), \
          mock.patch.object(Database, "add_video", side_effect=RuntimeError("db")):
@@ -159,6 +176,7 @@ def test_db_failure_restores_file_and_still_runs_post_backup(tmp_path):
 # ------------------------------------------------------------ gaps: main() and edges
 
 def test_main_force_runs_wizard_without_client_when_mpv_down(monkeypatch, tmp_path):
+    """Verify main force runs wizard without client when mpv down."""
     monkeypatch.setenv("SVF_ROOT", str(tmp_path))
     with mock.patch.object(ingest.MpvClient, "is_running", return_value=False), \
          mock.patch.object(ingest, "run_ingest") as run:
@@ -167,6 +185,7 @@ def test_main_force_runs_wizard_without_client_when_mpv_down(monkeypatch, tmp_pa
 
 
 def test_main_passes_client_when_mpv_running(monkeypatch, tmp_path):
+    """Verify main passes client when mpv running."""
     monkeypatch.setenv("SVF_ROOT", str(tmp_path))
     with mock.patch.object(ingest.MpvClient, "is_running", return_value=True), \
          mock.patch.object(ingest, "run_ingest") as run:
@@ -175,6 +194,7 @@ def test_main_passes_client_when_mpv_running(monkeypatch, tmp_path):
 
 
 def test_main_reads_visit_hours_setting(monkeypatch, tmp_path):
+    """Verify main reads visit hours setting."""
     monkeypatch.setenv("SVF_ROOT", str(tmp_path))
     db = Database(tmp_path)
     with db.connect() as conn:
@@ -185,12 +205,14 @@ def test_main_reads_visit_hours_setting(monkeypatch, tmp_path):
 
 
 def test_find_unindexed_missing_dir_and_case_insensitive(tmp_path):
+    """Verify find unindexed missing dir and case insensitive."""
     assert ingest.find_unindexed(tmp_path / "nope") == []
     inc = make_incoming(tmp_path, "A.MP4", "b.Mkv", "c.txt", "d.avi", "e.mov")
     assert [p.name for p in ingest.find_unindexed(inc)] == ["A.MP4", "b.Mkv", "d.avi", "e.mov"]
 
 
 def test_probe_duration_falls_back_to_stream():
+    """Verify probe duration falls back to stream."""
     data = json.dumps({"format": {}, "streams": [
         {"codec_type": "video", "codec_name": "hevc", "width": 1280, "height": 720,
          "duration": "10.2"}]})
@@ -201,6 +223,7 @@ def test_probe_duration_falls_back_to_stream():
 
 
 def test_probe_invalid_json_raises():
+    """Verify probe invalid json raises."""
     with mock.patch("subprocess.run", return_value=completed("not json")):
         with pytest.raises(ingest.ProbeError):
             ingest.probe_video("a.mp4")
@@ -208,6 +231,7 @@ def test_probe_invalid_json_raises():
 
 @pytest.mark.parametrize("answer", ["si", "sì", "S", " s "])
 def test_preview_accepts_italian_yes_variants(tmp_path, answer):
+    """Verify preview accepts italian yes variants."""
     make_incoming(tmp_path, "a.mp4")
     client = mock.Mock()
     with mock.patch("subprocess.run", return_value=completed(FFPROBE_OK)):
@@ -217,6 +241,7 @@ def test_preview_accepts_italian_yes_variants(tmp_path, answer):
 
 @pytest.mark.parametrize("answer", ["n", "no", "", "x"])
 def test_preview_rejects_other_answers(tmp_path, answer):
+    """Verify preview rejects other answers."""
     make_incoming(tmp_path, "a.mp4")
     client = mock.Mock()
     with mock.patch("subprocess.run", return_value=completed(FFPROBE_OK)):
@@ -225,6 +250,7 @@ def test_preview_rejects_other_answers(tmp_path, answer):
 
 
 def test_title_length_counts_characters_not_bytes():
+    """Verify title length counts characters not bytes."""
     assert ingest.ask_title(scripted(["à" * 38]), print) == "à" * 38
     out = []
     assert ingest.ask_title(scripted(["à" * 39, "ok"]), out.append) == "ok"
@@ -232,10 +258,12 @@ def test_title_length_counts_characters_not_bytes():
 
 
 def test_description_may_be_empty():
+    """Verify description may be empty."""
     assert ingest.ask_description(scripted([""]), print) == ""
 
 
 def test_name_collision_in_archive_keeps_both_files(tmp_path):
+    """Verify name collision in archive keeps both files."""
     archive = tmp_path / "media" / "archive"
     archive.mkdir(parents=True)
     (archive / "a.mp4").write_bytes(b"old")

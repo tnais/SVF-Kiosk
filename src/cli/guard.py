@@ -25,6 +25,7 @@ def parse_visit_hours(value: str | None) -> list[tuple[time, time]]:
 
 
 def in_visit_hours(now: datetime, ranges: list[tuple[time, time]]) -> bool:
+    """Handle in visit hours operations."""
     current = now.time()
     return any(start <= current <= end for start, end in ranges)
 
@@ -47,6 +48,7 @@ def operation_allowed(
     now: datetime | None = None,
     force: bool = False,
 ) -> bool:
+    """Handle operation allowed operations."""
     if force:
         return True
     if in_visit_hours(now or datetime.now(), parse_visit_hours(visit_hours)):

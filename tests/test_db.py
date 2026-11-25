@@ -10,10 +10,12 @@ from src.db.database import Database, default_root
 
 @pytest.fixture
 def db(tmp_path):
+    """Handle db operations."""
     return Database(tmp_path / "root")
 
 
 def add_videos(db, tmp_path, count=3):
+    """Update state for add videos."""
     ids = []
     for i in range(count):
         media = tmp_path / f"video{i}.mp4"
@@ -23,16 +25,19 @@ def add_videos(db, tmp_path, count=3):
 
 
 def playlist_ids(db):
+    """Handle playlist ids operations."""
     return [row["id"] for row in db.get_playlist()]
 
 
 def test_default_root_uses_environment(monkeypatch, tmp_path):
+    """Verify default root uses environment."""
     monkeypatch.setenv("SVF_ROOT", str(tmp_path))
     assert default_root() == tmp_path
     assert Database().db_path == tmp_path / "data" / "svf_kiosk.db"
 
 
 def test_pragmas_applied_on_every_connection(db):
+    """Verify pragmas applied on every connection."""
     for _ in range(2):
         conn = db.connect()
         try:
@@ -44,6 +49,7 @@ def test_pragmas_applied_on_every_connection(db):
 
 
 def test_foreign_keys_enforced(db, tmp_path):
+    """Verify foreign keys enforced."""
     conn = db.connect()
     try:
         with pytest.raises(sqlite3.IntegrityError):
@@ -55,6 +61,7 @@ def test_foreign_keys_enforced(db, tmp_path):
 
 
 def test_playlist_restricts_video_deletion_and_presets_cascade(db, tmp_path):
+    """Verify playlist restricts video deletion and presets cascade."""
     first, second, _ = add_videos(db, tmp_path)
     db.add_to_playlist(first)
     conn = db.connect()
@@ -71,12 +78,14 @@ def test_playlist_restricts_video_deletion_and_presets_cascade(db, tmp_path):
 
 
 def test_available_videos_sorted_by_title(db, tmp_path):
+    """Verify available videos sorted by title."""
     add_videos(db, tmp_path)
     titles = [v["display_title"] for v in db.get_available_videos()]
     assert titles == ["Video A", "Video B", "Video C"]
 
 
 def test_add_and_remove_reindexes_positions(db, tmp_path):
+    """Verify add and remove reindexes positions."""
     a, b, c = add_videos(db, tmp_path)
     for vid in (a, b, c):
         db.add_to_playlist(vid)
@@ -87,11 +96,13 @@ def test_add_and_remove_reindexes_positions(db, tmp_path):
 
 
 def test_remove_invalid_position_rejected(db, tmp_path):
+    """Verify remove invalid position rejected."""
     with pytest.raises(ValueError):
         db.remove_from_playlist(1)
 
 
 def test_reorder_swap_and_shift(db, tmp_path):
+    """Verify reorder swap and shift."""
     a, b, c = add_videos(db, tmp_path)
     for vid in (a, b, c):
         db.add_to_playlist(vid)
@@ -103,6 +114,7 @@ def test_reorder_swap_and_shift(db, tmp_path):
 
 
 def test_reorder_invalid_position_leaves_playlist_unchanged(db, tmp_path):
+    """Verify reorder invalid position leaves playlist unchanged."""
     a, b, _ = add_videos(db, tmp_path)
     db.add_to_playlist(a)
     db.add_to_playlist(b)
@@ -112,6 +124,7 @@ def test_reorder_invalid_position_leaves_playlist_unchanged(db, tmp_path):
 
 
 def test_soft_delete_rejected_when_in_playlist(db, tmp_path):
+    """Verify soft delete rejected when in playlist."""
     a, _, _ = add_videos(db, tmp_path)
     db.add_to_playlist(a)
     with pytest.raises(ValueError):
@@ -120,6 +133,7 @@ def test_soft_delete_rejected_when_in_playlist(db, tmp_path):
 
 
 def test_soft_delete_moves_file_and_flags_video(db, tmp_path):
+    """Verify soft delete moves file and flags video."""
     a, _, _ = add_videos(db, tmp_path)
     source = tmp_path / "video0.mp4"
     conn = db.connect()
@@ -142,6 +156,7 @@ def test_soft_delete_moves_file_and_flags_video(db, tmp_path):
 
 
 def test_soft_delete_rolls_back_when_file_missing(db, tmp_path):
+    """Verify soft delete rolls back when file missing."""
     a, _, _ = add_videos(db, tmp_path)
     (tmp_path / "video0.mp4").unlink()
     with pytest.raises(FileNotFoundError):
@@ -150,6 +165,7 @@ def test_soft_delete_rolls_back_when_file_missing(db, tmp_path):
 
 
 def test_create_backup_is_valid_snapshot(db, tmp_path):
+    """Verify create backup is valid snapshot."""
     add_videos(db, tmp_path)
     path = db.create_backup("pre_edit")
     assert "svf_kiosk_pre_edit_" in path
@@ -163,6 +179,7 @@ def test_create_backup_is_valid_snapshot(db, tmp_path):
 
 
 def test_backup_rotation_keeps_20_most_recent(db):
+    """Verify backup rotation keeps 20 most recent."""
     created = [db.create_backup("auto") for _ in range(25)]
     db.rotate_backups()
     remaining = [str(p) for p in db.list_backups()]
@@ -171,6 +188,7 @@ def test_backup_rotation_keeps_20_most_recent(db):
 
 
 def test_rotation_with_custom_keep_count(db):
+    """Verify rotation with custom keep count."""
     for _ in range(5):
         db.create_backup("auto")
     db.rotate_backups(keep_count=2)
@@ -178,6 +196,7 @@ def test_rotation_with_custom_keep_count(db):
 
 
 def test_json_mirror_is_written_atomically(db, tmp_path):
+    """Verify json mirror is written atomically."""
     a, b, _ = add_videos(db, tmp_path)
     db.add_to_playlist(b)
     db.add_to_playlist(a)
@@ -190,6 +209,7 @@ def test_json_mirror_is_written_atomically(db, tmp_path):
 
 
 def test_set_playlist_replaces_atomically(db, tmp_path):
+    """Verify set playlist replaces atomically."""
     ids = [db.add_video(str(tmp_path / f"{n}.mp4"), n) for n in "abc"]
     db.set_playlist([ids[2], ids[0]])
     assert [r["video_id"] if "video_id" in r else r["id"] for r in db.get_playlist()] == [ids[2], ids[0]]
@@ -199,6 +219,7 @@ def test_set_playlist_replaces_atomically(db, tmp_path):
 
 
 def test_set_playlist_rejects_unknown_and_duplicates_without_changes(db, tmp_path):
+    """Verify set playlist rejects unknown and duplicates without changes."""
     a = db.add_video(str(tmp_path / "a.mp4"), "a")
     db.set_playlist([a])
     with pytest.raises(ValueError):
@@ -209,6 +230,7 @@ def test_set_playlist_rejects_unknown_and_duplicates_without_changes(db, tmp_pat
 
 
 def test_remote_preset_roundtrip_and_update(db, tmp_path):
+    """Verify remote preset roundtrip and update."""
     a, b, _ = add_videos(db, tmp_path)
     assert db.get_remote_preset_video(3) is None
     db.set_remote_preset(3, a)
@@ -219,12 +241,14 @@ def test_remote_preset_roundtrip_and_update(db, tmp_path):
 
 @pytest.mark.parametrize("key", [0, 10, -1])
 def test_remote_preset_rejects_invalid_key(db, tmp_path, key):
+    """Verify remote preset rejects invalid key."""
     a, *_ = add_videos(db, tmp_path)
     with pytest.raises(ValueError):
         db.set_remote_preset(key, a)
 
 
 def test_remote_preset_hidden_for_deleted_video(db, tmp_path):
+    """Verify remote preset hidden for deleted video."""
     a, *_ = add_videos(db, tmp_path)
     db.set_remote_preset(1, a)
     db.soft_delete_video(a, tmp_path / "trash")
@@ -232,6 +256,7 @@ def test_remote_preset_hidden_for_deleted_video(db, tmp_path):
 
 
 def test_get_remote_presets_ordered_and_without_deleted(db, tmp_path):
+    """Verify get remote presets ordered and without deleted."""
     a, b, c = add_videos(db, tmp_path)
     db.set_remote_preset(5, b)
     db.set_remote_preset(2, a)
@@ -242,6 +267,7 @@ def test_get_remote_presets_ordered_and_without_deleted(db, tmp_path):
 
 
 def test_clear_remote_preset(db, tmp_path):
+    """Verify clear remote preset."""
     a, *_ = add_videos(db, tmp_path)
     db.set_remote_preset(4, a)
     assert db.clear_remote_preset(4) is True
@@ -250,6 +276,7 @@ def test_clear_remote_preset(db, tmp_path):
 
 
 def test_set_remote_presets_replaces_everything_atomically(db, tmp_path):
+    """Verify set remote presets replaces everything atomically."""
     a, b, c = add_videos(db, tmp_path)
     db.set_remote_preset(1, a)
     db.set_remote_presets({2: b, 3: b})
@@ -259,6 +286,7 @@ def test_set_remote_presets_replaces_everything_atomically(db, tmp_path):
 
 
 def test_set_remote_presets_rolls_back_on_invalid_entry(db, tmp_path):
+    """Verify set remote presets rolls back on invalid entry."""
     a, b, _ = add_videos(db, tmp_path)
     db.set_remote_preset(1, a)
     with pytest.raises(ValueError):
@@ -269,6 +297,7 @@ def test_set_remote_presets_rolls_back_on_invalid_entry(db, tmp_path):
 
 
 def test_set_remote_preset_rejects_unknown_or_deleted_video(db, tmp_path):
+    """Verify set remote preset rejects unknown or deleted video."""
     a, *_ = add_videos(db, tmp_path)
     with pytest.raises(ValueError):
         db.set_remote_preset(1, 9999)
@@ -278,6 +307,7 @@ def test_set_remote_preset_rejects_unknown_or_deleted_video(db, tmp_path):
 
 
 def test_soft_delete_drops_presets_of_the_video(db, tmp_path):
+    """Verify soft delete drops presets of the video."""
     a, *_ = add_videos(db, tmp_path)
     db.set_remote_presets({1: a, 9: a})
     db.soft_delete_video(a, tmp_path / "trash")

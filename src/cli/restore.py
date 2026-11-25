@@ -19,6 +19,7 @@ RESTART_COMMAND = ["systemctl", "--user", "restart", "svf-kiosk.service"]
 
 
 def is_valid_snapshot(path: Path) -> bool:
+    """Return whether is valid snapshot."""
     try:
         conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
         try:
@@ -45,6 +46,7 @@ def restore_snapshot(db: Database, snapshot: Path) -> str:
 
 
 def restart_service(runner: Callable = subprocess.run) -> bool:
+    """Handle restart service operations."""
     try:
         return runner(RESTART_COMMAND, capture_output=True, timeout=30).returncode == 0
     except (OSError, subprocess.SubprocessError):
@@ -52,6 +54,7 @@ def restart_service(runner: Callable = subprocess.run) -> bool:
 
 
 def visit_hours_setting(db: Database) -> str | None:
+    """Handle visit hours setting operations."""
     conn = db.connect()
     try:
         row = conn.execute("SELECT value FROM settings WHERE key='visit_hours'").fetchone()
@@ -62,6 +65,7 @@ def visit_hours_setting(db: Database) -> str | None:
 
 def run(db: Database, ask=None, out=print, err=None, runner: Callable = subprocess.run,
         force: bool = False, client: MpvClient | None = None) -> int:
+    """Handle run operations."""
     ask = ask or input
     err = err or (lambda text: print(text, file=sys.stderr))
     if not force:
@@ -100,6 +104,7 @@ def run(db: Database, ask=None, out=print, err=None, runner: Callable = subproce
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the restore command-line entry point."""
     parser = argparse.ArgumentParser(prog="svf-restore")
     parser.add_argument("--force", action="store_true", help="ignora il controllo orario di visita")
     args = parser.parse_args(argv)

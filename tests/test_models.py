@@ -9,6 +9,7 @@ from src.models.video import KioskState, PlaylistItem, RemotePreset, VideoMetada
 
 
 def make_video(**overrides: object) -> VideoMetadata:
+    """Produce the result for make video."""
     data: dict[str, object] = {
         "file_path": "/media/archive/video.mp4",
         "display_title": "Video del museo",
@@ -18,11 +19,13 @@ def make_video(**overrides: object) -> VideoMetadata:
 
 
 def test_title_longer_than_38_characters_is_rejected() -> None:
+    """Verify title longer than 38 characters is rejected."""
     with pytest.raises(ValidationError):
         make_video(display_title="x" * 39)
 
 
 def test_title_is_trimmed_before_length_validation() -> None:
+    """Verify title is trimmed before length validation."""
     video = make_video(display_title="  Titolo valido  ")
 
     assert video.display_title == "Titolo valido"
@@ -30,22 +33,26 @@ def test_title_is_trimmed_before_length_validation() -> None:
 
 @pytest.mark.parametrize("title", ["", "   "])
 def test_empty_title_is_rejected(title: str) -> None:
+    """Verify empty title is rejected."""
     with pytest.raises(ValidationError):
         make_video(display_title=title)
 
 
 def test_description_longer_than_150_characters_is_rejected() -> None:
+    """Verify description longer than 150 characters is rejected."""
     with pytest.raises(ValidationError):
         make_video(description="x" * 151)
 
 
 @pytest.mark.parametrize("file_path", ["video.wmv", "video", "video.mp4.exe"])
 def test_unsupported_video_extension_is_rejected(file_path: str) -> None:
+    """Verify unsupported video extension is rejected."""
     with pytest.raises(ValidationError):
         make_video(file_path=file_path)
 
 
 def test_valid_video_and_nested_models_serialize_to_dict_and_json() -> None:
+    """Verify valid video and nested models serialize to dict and json."""
     date_added = datetime(2026, 11, 2, 12, 0, tzinfo=timezone.utc)
     video = make_video(date_added=date_added, description=None)
     playlist_item = PlaylistItem(position=1, video=video)
@@ -70,11 +77,13 @@ def test_valid_video_and_nested_models_serialize_to_dict_and_json() -> None:
 
 @pytest.mark.parametrize("preset_key", [0, 10])
 def test_remote_preset_key_must_be_between_1_and_9(preset_key: int) -> None:
+    """Verify remote preset key must be between 1 and 9."""
     with pytest.raises(ValidationError):
         RemotePreset(preset_key=preset_key, video_id=1)
 
 
 def test_kiosk_state_rejects_unknown_mode() -> None:
+    """Verify kiosk state rejects unknown mode."""
     with pytest.raises(ValidationError):
         KioskState(
             is_playing=False,

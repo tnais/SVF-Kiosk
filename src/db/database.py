@@ -22,7 +22,9 @@ def default_root() -> Path:
 
 
 class Database:
+    """Encapsulate database behavior."""
     def __init__(self, root: str | os.PathLike[str] | None = None) -> None:
+        """Initialize the instance."""
         self.root = Path(root) if root is not None else default_root()
         self.data_dir = self.root / "data"
         self.backup_dir = self.root / "backups"
@@ -43,6 +45,7 @@ class Database:
 
     @contextmanager
     def _transaction(self) -> Iterator[sqlite3.Connection]:
+        """Handle transaction operations."""
         conn = self.connect()
         try:
             conn.execute("BEGIN IMMEDIATE")
@@ -56,6 +59,7 @@ class Database:
             conn.close()
 
     def initialize(self) -> None:
+        """Handle initialize operations."""
         conn = self.connect()
         try:
             conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
@@ -72,6 +76,7 @@ class Database:
         duration_seconds: int = 0,
         resolution: str = "",
     ) -> int:
+        """Update state for add video."""
         with self._transaction() as conn:
             cur = conn.execute(
                 "INSERT INTO videos (file_path, display_title, description,"
@@ -81,6 +86,7 @@ class Database:
             return int(cur.lastrowid)
 
     def get_available_videos(self) -> list[dict[str, Any]]:
+        """Return data for get available videos."""
         conn = self.connect()
         try:
             rows = conn.execute(
@@ -92,6 +98,7 @@ class Database:
             conn.close()
 
     def is_video_in_playlist(self, video_id: int) -> bool:
+        """Return whether is video in playlist."""
         conn = self.connect()
         try:
             row = conn.execute(
@@ -138,6 +145,7 @@ class Database:
     # ---------------------------------------------------------------- playlist
 
     def get_playlist(self) -> list[dict[str, Any]]:
+        """Return data for get playlist."""
         conn = self.connect()
         try:
             rows = conn.execute(
@@ -150,6 +158,7 @@ class Database:
 
     @staticmethod
     def _check_preset(conn: sqlite3.Connection, preset_key: int, video_id: int) -> None:
+        """Handle check preset operations."""
         if not isinstance(preset_key, int) or not 1 <= preset_key <= 9:
             raise ValueError("preset_key must be between 1 and 9")
         found = conn.execute(
@@ -159,6 +168,7 @@ class Database:
             raise ValueError(f"Video {video_id} not found")
 
     def set_remote_preset(self, preset_key: int, video_id: int) -> None:
+        """Update state for set remote preset."""
         with self._transaction() as conn:
             self._check_preset(conn, preset_key, video_id)
             conn.execute(
@@ -214,11 +224,13 @@ class Database:
 
     @staticmethod
     def _playlist_ids(conn: sqlite3.Connection) -> list[int]:
+        """Handle playlist ids operations."""
         rows = conn.execute("SELECT video_id FROM playlist ORDER BY position").fetchall()
         return [r["video_id"] for r in rows]
 
     @staticmethod
     def _rewrite_playlist(conn: sqlite3.Connection, video_ids: list[int]) -> None:
+        """Handle rewrite playlist operations."""
         conn.execute("DELETE FROM playlist")
         conn.executemany(
             "INSERT INTO playlist (position, video_id) VALUES (?, ?)",
@@ -252,6 +264,7 @@ class Database:
             self._rewrite_playlist(conn, list(video_ids))
 
     def remove_from_playlist(self, position: int) -> None:
+        """Update state for remove from playlist."""
         with self._transaction() as conn:
             ids = self._playlist_ids(conn)
             if not 1 <= position <= len(ids):
@@ -299,6 +312,7 @@ class Database:
         return [item[2] for item in sorted(found)]
 
     def rotate_backups(self, keep_count: int = 20) -> None:
+        """Handle rotate backups operations."""
         backups = self.list_backups()
         for old in backups[: max(len(backups) - keep_count, 0)]:
             old.unlink()

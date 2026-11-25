@@ -18,7 +18,21 @@ architecture and behavior.
 - Linux for production playback, USB sync, and Bluetooth remote support
 - `mpv` and X11 for kiosk playback
 
-Python dependencies are declared in `pyproject.toml`.
+Python dependencies are declared in `pyproject.toml` and are also listed in
+[`requirements.txt`](requirements.txt) for virtual-environment setup.
+
+### Python dependencies
+
+| Package | Minimum version | Role |
+| --- | ---: | --- |
+| `textual` | 0.85.0 | Terminal user interface for the playlist editor |
+| `pydantic` | 2.10.0 | Validation of video metadata, presets, and kiosk state |
+| `python-mpv-jsonipc` | 1.1.1 | JSON-IPC communication with `mpv` |
+| `evdev` | 1.7.0 | Linux Bluetooth remote and input-event access |
+| `pytest` | 8.3.0 | Automated test suite |
+
+`evdev` is installed only on Linux, because the production kiosk uses Linux
+input-event devices.
 
 ## Development setup
 
@@ -27,6 +41,7 @@ From the repository root:
 ```bash
 ./scripts/setup-venv.sh
 source .venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 
 Run the test suite with:

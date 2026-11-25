@@ -14,6 +14,7 @@ BIN = Path(sys.executable).parent
 
 
 def script(name):
+    """Handle script operations."""
     path = BIN / name
     if not path.exists():
         pytest.skip(f"{name} is not installed")
@@ -22,6 +23,7 @@ def script(name):
 
 @pytest.fixture
 def root(tmp_path):
+    """Handle root operations."""
     db = Database(tmp_path)
     f = tmp_path / "a.mp4"
     f.write_bytes(b"x")
@@ -30,6 +32,7 @@ def root(tmp_path):
 
 
 def call(name, root, *args, stdin=""):
+    """Handle call operations."""
     env = {"SVF_ROOT": str(root), "PATH": "/usr/bin:/bin", "HOME": str(root), "LANG": "C.UTF-8",
            "XDG_RUNTIME_DIR": str(root)}
     return subprocess.run([script(name), *args], capture_output=True, text=True, input=stdin,
@@ -37,6 +40,7 @@ def call(name, root, *args, stdin=""):
 
 
 def test_svf_presets_round_trip(root):
+    """Verify svf presets round trip."""
     assert call("svf-presets", root, "set", "2", "stazione").returncode == 0
     out = call("svf-presets", root, "list")
     assert out.returncode == 0 and "Stazione" in out.stdout
@@ -45,11 +49,13 @@ def test_svf_presets_round_trip(root):
 
 
 def test_svf_status_runs_without_services(root):
+    """Verify svf status runs without services."""
     r = call("svf-status", root)
     assert r.returncode == 0 and S.MSG_STATUS_PLAYER_DOWN in r.stdout
 
 
 def test_svf_restore_without_backups_and_with_eof(root):
+    """Verify svf restore without backups and with eof."""
     for p in (root / "backups").glob("*.db"):
         p.unlink()
     r = call("svf-restore", root)

@@ -12,7 +12,9 @@ from src.db.database import Database
 
 
 class FakeMpvServer:
+    """Encapsulate fake mpv server behavior."""
     def __init__(self, path):
+        """Initialize the instance."""
         self.props = {"idle-active": False, "pause": False}
         self.commands = []
         self.srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -22,6 +24,7 @@ class FakeMpvServer:
         threading.Thread(target=self._loop, daemon=True).start()
 
     def _loop(self):
+        """Handle loop operations."""
         while not self.closed:
             try:
                 conn, _ = self.srv.accept()
@@ -42,19 +45,23 @@ class FakeMpvServer:
                 conn.sendall((json.dumps(reply) + "\n").encode())
 
     def close(self):
+        """Handle close operations."""
         self.closed = True
         self.srv.close()
 
 
 class Clock:
+    """Encapsulate clock behavior."""
     t = 0.0
 
     def __call__(self):
+        """Handle call operations."""
         return self.t
 
 
 @pytest.fixture
 def stack(tmp_path):
+    """Handle stack operations."""
     db = Database(tmp_path)
     ids = []
     for n in "ABC":
@@ -71,6 +78,7 @@ def stack(tmp_path):
 
 
 def test_wire_commands_for_a_full_guide_cycle(stack):
+    """Verify wire commands for a full guide cycle."""
     ctl, server, clock, root = stack
     ctl.start()
     assert ["loadfile", str(root / "A.mp4"), "replace"] in server.commands
@@ -91,6 +99,7 @@ def test_wire_commands_for_a_full_guide_cycle(stack):
 
 
 def test_standby_uses_stop_and_show_text(stack):
+    """Verify standby uses stop and show text."""
     ctl, server, clock, root = stack
     ctl.db.set_playlist([])
     ctl.start()
@@ -99,6 +108,7 @@ def test_standby_uses_stop_and_show_text(stack):
 
 
 def test_end_of_file_detected_via_idle_active_property(stack):
+    """Verify end of file detected via idle active property."""
     ctl, server, clock, root = stack
     ctl.start()
     clock.t += 5

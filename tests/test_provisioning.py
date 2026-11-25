@@ -30,15 +30,18 @@ def unit(path):
 
 @pytest.mark.parametrize("name,shell", [("setup-kiosk.sh", "bash"), ("x11-session.sh", "sh")])
 def test_shell_syntax(name, shell):
+    """Verify shell syntax."""
     assert subprocess.run([shell, "-n", str(SCRIPTS / name)]).returncode == 0
 
 
 def test_scripts_are_executable():
+    """Verify scripts are executable."""
     for name in ("setup-kiosk.sh", "x11-session.sh"):
         assert (SCRIPTS / name).stat().st_mode & 0o111
 
 
 def test_setup_script_is_strict_and_checks_debian_12():
+    """Verify setup script is strict and checks debian 12."""
     text = SETUP.read_text(encoding="utf-8")
     assert "set -euo pipefail" in text
     assert "/etc/debian_version" in text and '"12"' in text
@@ -49,6 +52,7 @@ def test_setup_script_is_strict_and_checks_debian_12():
 
 
 def test_setup_script_refuses_non_root():
+    """Verify setup script refuses non root."""
     r = subprocess.run(["bash", str(SCRIPTS / "setup-kiosk.sh")], capture_output=True, text=True)
     import os
     if os.geteuid() == 0:
@@ -57,6 +61,7 @@ def test_setup_script_refuses_non_root():
 
 
 def test_no_wayland_anywhere_in_provisioning():
+    """Verify no wayland anywhere in provisioning."""
     for path in [*SCRIPTS.glob("*.sh"), *SCRIPTS.glob("systemd/*")]:
         text = code_only(path).lower()
         for word in ("cage", "labwc", "weston", "wayland"):
@@ -64,11 +69,13 @@ def test_no_wayland_anywhere_in_provisioning():
 
 
 def test_x11_session_disables_blanking_and_hides_cursor():
+    """Verify x11 session disables blanking and hides cursor."""
     text = (SCRIPTS / "x11-session.sh").read_text(encoding="utf-8")
     assert "xset s off -dpms" in text and "unclutter -idle 0.5 -root" in text
 
 
 def test_kiosk_unit_matches_spec():
+    """Verify kiosk unit matches spec."""
     u = unit(KIOSK)
     env = u["Service"]["Environment"]
     assert "DISPLAY=:0" in env and "PYTHONUNBUFFERED=1" in env
@@ -80,6 +87,7 @@ def test_kiosk_unit_matches_spec():
 
 
 def test_x11_unit_runs_as_operator_on_display_0():
+    """Verify x11 unit runs as operator on display 0."""
     u = unit(X11)
     assert u["Service"]["User"] == "svf-operatore"
     assert ":0" in u["Service"]["ExecStart"] and "xinit" in u["Service"]["ExecStart"]
@@ -88,6 +96,7 @@ def test_x11_unit_runs_as_operator_on_display_0():
 
 
 def test_wait_for_x_socket_snippet_behaviour(tmp_path):
+    """Verify wait for x socket snippet behaviour."""
     cmd = unit(KIOSK)["Service"]["ExecStartPre"].replace("/bin/sh -c ", "", 1).strip("'")
     cmd = cmd.replace("/tmp/.X11-unix/X0", str(tmp_path / "X0")).replace("$$", "$")
     (tmp_path / "X0").touch()  # not a socket: must keep waiting then fail quickly
@@ -96,11 +105,13 @@ def test_wait_for_x_socket_snippet_behaviour(tmp_path):
 
 
 def test_daemon_entry_point_exists():
+    """Verify daemon entry point exists."""
     assert 'svf-kiosk-daemon = "src.daemon.kiosk_player:main"' in (ROOT / "pyproject.toml").read_text()
 
 
 @pytest.mark.skipif(shutil.which("systemd-analyze") is None, reason="systemd-analyze missing")
 def test_systemd_analyze_accepts_units(tmp_path):
+    """Verify systemd analyze accepts units."""
     for src in (KIOSK, X11):
         r = subprocess.run(["systemd-analyze", "verify", "--user" if src == KIOSK else "--system", str(src)],
                            capture_output=True, text=True)
@@ -130,10 +141,12 @@ def code_only(path):
 
 
 def setup_text():
+    """Handle setup text operations."""
     return code_only(SETUP)
 
 
 def entry_points():
+    """Handle entry points operations."""
     data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     return set(data["project"]["scripts"])
 
@@ -146,6 +159,7 @@ def linked_tools():
 
 
 def test_every_linked_tool_is_a_real_entry_point():
+    """Verify every linked tool is a real entry point."""
     assert set(linked_tools()) <= entry_points()
 
 
@@ -155,11 +169,13 @@ def test_every_operator_tool_is_linked_into_usr_local_bin():
 
 
 def test_files_referenced_by_the_setup_script_exist():
+    """Verify files referenced by the setup script exist."""
     for name in re.findall(r"scripts/systemd/[\w.-]+", setup_text()):
         assert (ROOT / name).is_file(), name
 
 
 def test_x11_unit_points_to_an_existing_session_script():
+    """Verify x11 unit points to an existing session script."""
     exec_start = unit(X11)["Service"]["ExecStart"]
     relative = re.search(r"/opt/svf-kiosk/(scripts/[\w.-]+\.sh)", exec_start).group(1)
     assert (ROOT / relative).is_file()
@@ -175,6 +191,7 @@ def test_paths_match_application_defaults():
 
 
 def test_operator_user_is_consistent_everywhere():
+    """Verify operator user is consistent everywhere."""
     assert 'OPERATOR="svf-operatore"' in setup_text()
     assert unit(X11)["Service"]["User"] == "svf-operatore"
     assert "/home/svf-operatore/" in unit(KIOSK)["Service"]["Environment"]
@@ -182,12 +199,14 @@ def test_operator_user_is_consistent_everywhere():
 
 
 def test_operator_user_is_in_required_groups_and_lingers():
+    """Verify operator user is in required groups and lingers."""
     text = setup_text()
     assert "audio,video,input,render" in text  # input: evdev remote; render/video: VAAPI
     assert 'loginctl enable-linger "${OPERATOR}"' in text
 
 
 def test_root_and_os_checks_come_before_any_change():
+    """Verify root and os checks come before any change."""
     text = setup_text()
     first_change = min(text.index(m) for m in ("apt-get update", "mkdir -p", "adduser", "cat >"))
     assert text.index("id -u") < first_change
@@ -195,6 +214,7 @@ def test_root_and_os_checks_come_before_any_change():
 
 
 def test_steps_run_in_a_sane_order():
+    """Verify steps run in a sane order."""
     text = setup_text()
     order = ["apt-get update", "locale-gen", "adduser", "Xwrapper.config", 'mkdir -p "${DATA_DIR}"',
              "rsync -a", "-m venv", "ln -sf", "systemctl daemon-reload", "systemctl restart svf-x11"]
@@ -203,6 +223,7 @@ def test_steps_run_in_a_sane_order():
 
 
 def test_data_directories_are_complete_and_group_writable():
+    """Verify data directories are complete and group writable."""
     text = setup_text()
     assert "{data,media/archive,media/incoming,trash,backups}" in text
     assert 'chown -R "${OPERATOR}:${OPERATOR}" "${DATA_DIR}"' in text
@@ -210,6 +231,7 @@ def test_data_directories_are_complete_and_group_writable():
 
 
 def test_setup_script_is_idempotent_by_construction():
+    """Verify setup script is idempotent by construction."""
     text = setup_text()
     assert "mkdir -p" in text and "ln -sf" in text and "rsync -a --delete" in text
     assert "adduser" in text and "if ! id " in text  # user created only when missing
@@ -217,6 +239,7 @@ def test_setup_script_is_idempotent_by_construction():
 
 
 def test_setup_script_avoids_dangerous_patterns():
+    """Verify setup script avoids dangerous patterns."""
     text = setup_text()
     assert "curl" not in text and "wget" not in text  # no downloads piped into a shell
     assert not re.search(r"\brm\s+-rf?\s+/(\s|$)", text)
@@ -225,12 +248,14 @@ def test_setup_script_avoids_dangerous_patterns():
 
 
 def test_setup_script_variables_are_quoted_in_dangerous_commands():
+    """Verify setup script variables are quoted in dangerous commands."""
     for line in setup_text().splitlines():
         if line.lstrip().startswith(("chown", "chmod", "rsync", "mkdir")):
             assert not re.search(r"(?<![\"{])\$[A-Za-z_]", line), line  # unquoted $VAR
 
 
 def test_setup_script_messages_are_italian_utf8():
+    """Verify setup script messages are italian utf8."""
     text = setup_text()
     assert 'die "' in text and "ERRORE:" in text
     for bad in ("Ã", "â€", "Â"):
@@ -239,6 +264,7 @@ def test_setup_script_messages_are_italian_utf8():
 
 
 def test_provisioning_files_have_no_mojibake_or_trailing_spaces():
+    """Verify provisioning files have no mojibake or trailing spaces."""
     files = [SETUP, SCRIPTS / "x11-session.sh", KIOSK, X11]
     for path in files:
         text = path.read_text(encoding="utf-8")
@@ -248,11 +274,13 @@ def test_provisioning_files_have_no_mojibake_or_trailing_spaces():
 
 
 def test_shell_scripts_have_a_shebang():
+    """Verify shell scripts have a shebang."""
     assert setup_text().startswith("#!/usr/bin/env bash")
     assert (SCRIPTS / "x11-session.sh").read_text(encoding="utf-8").startswith("#!/bin/sh")
 
 
 def test_x11_session_keeps_x_alive_and_is_posix_sh():
+    """Verify x11 session keeps x alive and is posix sh."""
     text = (SCRIPTS / "x11-session.sh").read_text(encoding="utf-8")
     assert "exec sleep infinity" in text  # when this script exits, X shuts down
     assert "[[" not in text and "bash" not in text.lower().replace("#!/bin/sh", "")
@@ -265,27 +293,32 @@ def test_x11_unit_never_starts_the_player_itself():
 
 
 def test_kiosk_unit_orders_after_x_and_is_not_a_system_target():
+    """Verify kiosk unit orders after x and is not a system target."""
     u = unit(KIOSK)
     assert "svf-x11.service" in u["Unit"]["After"]
     assert "multi-user.target" not in u["Install"]["WantedBy"]
 
 
 def test_kiosk_unit_waits_for_x_socket_with_a_bounded_timeout():
+    """Verify kiosk unit waits for x socket with a bounded timeout."""
     cmd = unit(KIOSK)["Service"]["ExecStartPre"]
     assert "-S /tmp/.X11-unix/X0" in cmd and re.search(r"-gt \d+", cmd) and "exit 1" in cmd
 
 
 def test_x11_unit_uses_display_0_on_vt1_without_cursor():
+    """Verify x11 unit uses display 0 on vt1 without cursor."""
     exec_start = unit(X11)["Service"]["ExecStart"]
     assert " :0 " in exec_start and "vt1" in exec_start and "-nocursor" in exec_start
 
 
 def test_units_are_documented_with_header_comments():
+    """Verify units are documented with header comments."""
     for path in (KIOSK, X11):
         assert path.read_text(encoding="utf-8").startswith("#"), path.name
 
 
 def test_documentation_mentions_the_provisioning_entry_points():
+    """Verify documentation mentions the provisioning entry points."""
     docs = (ROOT / "Docs" / "DEVELOPMENT_PLAN_AND_INSTALLATION.md").read_text(encoding="utf-8")
     for needle in ("setup-kiosk.sh", "x11-session.sh", "svf-x11.service", "svf-kiosk.service",
                    "enable-linger", "Group G"):

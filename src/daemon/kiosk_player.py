@@ -47,6 +47,7 @@ def next_index(interrupted_index: int, total: int) -> int:
 
 
 def mpv_command_line(socket_path: str) -> list[str]:
+    """Handle mpv command line operations."""
     return [
         "mpv", "--idle=yes", "--force-window=yes", "--vo=gpu", "--hwdec=auto-safe", "--fullscreen",
         "--no-terminal", "--cursor-autohide=always", "--cursor-autohide-fs-only",
@@ -65,6 +66,7 @@ class PlaybackController:
 
     def __init__(self, db: Database, mpv: MpvClient, clock: Callable[[], float] = time.monotonic,
                  exists: Callable[[str], bool] = os.path.exists) -> None:
+        """Initialize the instance."""
         self.db, self.mpv, self.clock, self.exists = db, mpv, clock, exists
         self.playlist: list[dict] = []
         self.mode = EMPTY
@@ -80,6 +82,7 @@ class PlaybackController:
 
     # ---- playlist ---------------------------------------------------
     def reload_playlist(self) -> None:
+        """Handle reload playlist operations."""
         new = self.db.get_playlist()
         if [v["id"] for v in new] == [v["id"] for v in self.playlist]:
             self.playlist = new
@@ -96,10 +99,12 @@ class PlaybackController:
             self.index = min(self.index, len(new) - 1)
 
     def start(self) -> None:
+        """Handle start operations."""
         self.reload_playlist()
         self._enter_ambient(0)
 
     def _enter_ambient(self, index: int) -> None:
+        """Handle enter ambient operations."""
         total = len(self.playlist)
         for offset in range(total):
             candidate = (index + offset) % total
@@ -113,17 +118,20 @@ class PlaybackController:
         self._show_standby()
 
     def _load(self, path: str) -> None:
+        """Handle load operations."""
         self.mpv.load_file(path)
         self.mpv.resume()
         self._grace_until = self.clock() + START_GRACE
 
     def _show_standby(self) -> None:
+        """Handle show standby operations."""
         self.mpv.stop()
         self.mpv.show_osd(S.MSG_BOOT_EMPTY, int(STANDBY_INTERVAL * 1000) + 1000)
         self._next_standby = self.clock() + STANDBY_INTERVAL
 
     # ---- remote keys --------------------------------------------------
     def handle_key(self, key: str) -> None:
+        """Handle handle key operations."""
         if key.isdigit():
             self._trigger_preset(int(key))
         elif key == "menu":
@@ -144,6 +152,7 @@ class PlaybackController:
             self._render_menu()
 
     def _trigger_preset(self, key: int) -> None:
+        """Handle trigger preset operations."""
         video = self.db.get_remote_preset_video(key)
         if video is None:
             self.mpv.show_osd(S.MSG_DAEMON_PRESET_EMPTY.format(key=key), OSD_MS)
@@ -151,6 +160,7 @@ class PlaybackController:
         self._play_on_demand(video)
 
     def _play_on_demand(self, video: dict) -> None:
+        """Handle play on demand operations."""
         if not self.exists(video["file_path"]):
             self.mpv.show_osd(osd_escape(S.MSG_DAEMON_FILE_MISSING.format(title=video["display_title"])), OSD_MS)
             return
@@ -161,6 +171,7 @@ class PlaybackController:
         self.mpv.show_osd(osd_escape(S.MSG_OSD_TRIGGER.format(title=video["display_title"])), OSD_MS)
 
     def _resume_after_ondemand(self) -> None:
+        """Handle resume after ondemand operations."""
         self.reload_playlist()
         if not self.playlist:
             self.mode, self.current = EMPTY, None
@@ -172,6 +183,7 @@ class PlaybackController:
 
     # ---- carousel menu --------------------------------------------------
     def _open_menu(self) -> None:
+        """Handle open menu operations."""
         self._menu_videos = self.db.get_available_videos()
         if not self._menu_videos:
             return
@@ -183,17 +195,20 @@ class PlaybackController:
         self._render_menu()
 
     def _toggle_menu(self) -> None:
+        """Handle toggle menu operations."""
         if self.menu_open:
             self._close_menu()
         else:
             self._open_menu()
 
     def _close_menu(self, redraw: bool = True) -> None:
+        """Handle close menu operations."""
         was_open, self.menu_open = self.menu_open, False
         if was_open and redraw:
             self.mpv.show_osd("", 1)
 
     def _render_menu(self) -> None:
+        """Handle render menu operations."""
         videos, cur = self._menu_videos, self.menu_cursor
         n = len(videos)
         title = lambda i: osd_escape(videos[i % n]["display_title"])  # noqa: E731
@@ -205,11 +220,13 @@ class PlaybackController:
                           int(MENU_TIMEOUT * 1000))
 
     def _select_menu_item(self) -> None:
+        """Handle select menu item operations."""
         video = self._menu_videos[self.menu_cursor]
         self._play_on_demand(video)
 
     # ---- periodic work --------------------------------------------------
     def tick(self) -> None:
+        """Handle tick operations."""
         now = self.clock()
         if self.menu_open and now >= self._menu_deadline:
             self.menu_open = False
@@ -228,6 +245,7 @@ class PlaybackController:
             self._on_file_finished()
 
     def _on_file_finished(self) -> None:
+        """Handle on file finished operations."""
         if self.mode == ONDEMAND:
             self._resume_after_ondemand()
         else:
@@ -252,6 +270,7 @@ class MpvSupervisor:
     """Spawns mpv and restarts it within WATCHDOG_DEADLINE seconds when it dies."""
 
     def __init__(self, socket_path: str | None = None, popen=subprocess.Popen) -> None:
+        """Initialize the instance."""
         self.socket_path = socket_path or default_socket_path()
         self._popen = popen
         self.proc = None
@@ -259,6 +278,7 @@ class MpvSupervisor:
         self._last_attempt = 0.0
 
     def start(self) -> None:
+        """Handle start operations."""
         Path(self.socket_path).parent.mkdir(parents=True, exist_ok=True)
         self._remove_socket()
         env = {**os.environ, "DISPLAY": os.environ.get("DISPLAY", ":0")}
@@ -271,6 +291,7 @@ class MpvSupervisor:
             self.proc = None
 
     def wait_for_socket(self, timeout: float = WATCHDOG_DEADLINE) -> bool:
+        """Handle wait for socket operations."""
         end = time.monotonic() + timeout
         while time.monotonic() < end:
             if Path(self.socket_path).exists():
@@ -281,6 +302,7 @@ class MpvSupervisor:
         return Path(self.socket_path).exists()
 
     def is_alive(self) -> bool:
+        """Return whether is alive."""
         return self.proc is not None and self.proc.poll() is None
 
     def ensure_running(self) -> bool:
@@ -295,6 +317,7 @@ class MpvSupervisor:
         return True
 
     def stop(self) -> None:
+        """Handle stop operations."""
         if self.proc is not None and self.proc.poll() is None:
             self.proc.terminate()
             try:
@@ -305,6 +328,7 @@ class MpvSupervisor:
         self._remove_socket()
 
     def _remove_socket(self) -> None:
+        """Handle remove socket operations."""
         try:
             os.unlink(self.socket_path)
         except FileNotFoundError:
@@ -322,6 +346,7 @@ def key_from_event(code: int, value: int) -> str | None:
 
 
 def find_input_devices(pattern: str = "/dev/input/event*") -> list[str]:
+    """Return data for find input devices."""
     return sorted(glob.glob(pattern))
 
 
@@ -345,6 +370,7 @@ async def listen_remote(on_key: Callable[[str], None], devices: list[str] | None
         return
 
     async def read(dev) -> None:
+        """Handle read operations."""
         try:
             async for event in dev.async_read_loop():
                 if event.type == evdev.ecodes.EV_KEY:
@@ -360,6 +386,7 @@ async def listen_remote(on_key: Callable[[str], None], devices: list[str] | None
 async def run(db: Database | None = None, supervisor: MpvSupervisor | None = None,
               stop: asyncio.Event | None = None, devices: list[str] | None = None,
               tick_seconds: float = 0.5) -> None:
+    """Handle run operations."""
     db = db or Database()
     supervisor = supervisor or MpvSupervisor()
     mpv = MpvClient(supervisor.socket_path)
@@ -373,6 +400,7 @@ async def run(db: Database | None = None, supervisor: MpvSupervisor | None = Non
             pass
 
     def safe(action: Callable[[], None]) -> None:
+        """Handle safe operations."""
         try:
             action()
         except MpvIpcError as exc:
@@ -400,6 +428,7 @@ async def run(db: Database | None = None, supervisor: MpvSupervisor | None = Non
 
 
 def main() -> int:
+    """Run the kiosk_player command-line entry point."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     if os.environ.get("WAYLAND_DISPLAY") or os.environ.get("XDG_SESSION_TYPE") == "wayland":
         log.warning("Wayland session detected: SVF Kiosk supports X11 only.")

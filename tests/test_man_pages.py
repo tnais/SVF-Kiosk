@@ -8,6 +8,7 @@ MAN_DIR = ROOT / "man" / "man1"
 
 
 def test_every_command_has_an_italian_man_page():
+    """Verify every command has an italian man page."""
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     commands = set(project["project"]["scripts"])
     pages = {path.stem for path in MAN_DIR.glob("*.1")}
@@ -23,6 +24,7 @@ def test_every_command_has_an_italian_man_page():
 
 
 def test_setup_installs_man_pages():
+    """Verify setup installs man pages."""
     setup = (ROOT / "scripts" / "setup-kiosk.sh").read_text(encoding="utf-8")
     assert 'install -d /usr/local/share/man/man1' in setup
     assert 'install -m 644 "${INSTALL_DIR}"/man/man1/*.1 /usr/local/share/man/man1/' in setup

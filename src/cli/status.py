@@ -19,6 +19,7 @@ MEMINFO_PATH = "/proc/meminfo"
 
 
 def format_clock(seconds: float) -> str:
+    """Produce the result for format clock."""
     total = max(int(seconds), 0)
     hours, rest = divmod(total, 3600)
     minutes, secs = divmod(rest, 60)
@@ -26,6 +27,7 @@ def format_clock(seconds: float) -> str:
 
 
 def player_lines(client: MpvClient) -> list[str]:
+    """Handle player lines operations."""
     try:
         if not client.is_running():
             return [S.MSG_STATUS_PLAYER_DOWN]
@@ -45,6 +47,7 @@ def player_lines(client: MpvClient) -> list[str]:
 
 
 def cpu_temperature_line(path: str = THERMAL_PATH) -> str:
+    """Handle cpu temperature line operations."""
     try:
         millidegrees = int(Path(path).read_text().strip())
     except (OSError, ValueError):
@@ -53,6 +56,7 @@ def cpu_temperature_line(path: str = THERMAL_PATH) -> str:
 
 
 def ram_line(path: str = MEMINFO_PATH) -> str:
+    """Handle ram line operations."""
     try:
         fields = {}
         for line in Path(path).read_text().splitlines():
@@ -65,6 +69,7 @@ def ram_line(path: str = MEMINFO_PATH) -> str:
 
 
 def disk_line(root: Path) -> str:
+    """Handle disk line operations."""
     try:
         usage = shutil.disk_usage(root)
     except OSError:
@@ -78,6 +83,7 @@ Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 
 
 def _run(cmd: list[str], runner: Runner, env: dict[str, str] | None = None) -> str | None:
+    """Handle run operations."""
     try:
         result = runner(cmd, capture_output=True, text=True, timeout=5, env=env)
     except (OSError, subprocess.SubprocessError):
@@ -86,6 +92,7 @@ def _run(cmd: list[str], runner: Runner, env: dict[str, str] | None = None) -> s
 
 
 def display_line(runner: Runner = subprocess.run) -> str:
+    """Handle display line operations."""
     env = {**os.environ, "DISPLAY": os.environ.get("DISPLAY", ":0")}
     out = _run(["xrandr", "--query"], runner, env)
     if out is None:
@@ -100,6 +107,7 @@ def display_line(runner: Runner = subprocess.run) -> str:
 
 
 def bluetooth_lines(runner: Runner = subprocess.run) -> list[str]:
+    """Handle bluetooth lines operations."""
     listing = _run(["bluetoothctl", "devices", "Connected"], runner)
     if listing is None:
         return [S.MSG_STATUS_BT_UNKNOWN]
@@ -119,6 +127,7 @@ def bluetooth_lines(runner: Runner = subprocess.run) -> list[str]:
 
 
 def build_report(client: MpvClient, root: Path, runner: Runner = subprocess.run) -> list[str]:
+    """Produce the result for build report."""
     return [
         S.MSG_STATUS_HEADER,
         *player_lines(client),
@@ -131,6 +140,7 @@ def build_report(client: MpvClient, root: Path, runner: Runner = subprocess.run)
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the status command-line entry point."""
     for line in build_report(MpvClient(), default_root()):
         print(line)
     return 0

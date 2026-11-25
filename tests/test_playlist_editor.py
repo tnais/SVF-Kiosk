@@ -1,3 +1,5 @@
+"""Python implementation for test playlist editor."""
+
 import asyncio
 import json
 
@@ -14,6 +16,7 @@ from src.tui.playlist_editor import (
 
 @pytest.fixture
 def env(tmp_path):
+    """Handle env operations."""
     db = Database(tmp_path)
     ids = {}
     for name in ("Delta", "Alfa", "Charlie", "Bravo"):
@@ -24,22 +27,26 @@ def env(tmp_path):
 
 
 def names(state):
+    """Handle names operations."""
     return [v["display_title"] for v in state.playlist_videos()]
 
 
 def test_left_panel_sorted_alphabetically(env):
+    """Verify left panel sorted alphabetically."""
     db, _, _ = env
     assert [v["display_title"] for v in EditorState(db).videos] == [
         "Alfa", "Bravo", "Charlie", "Delta"]
 
 
 def test_format_duration():
+    """Verify format duration."""
     assert format_duration(125) == "02:05"
     assert format_duration(None) == "00:00"
     assert format_duration(3600) == "60:00"
 
 
 def test_navigation_is_clamped(env):
+    """Verify navigation is clamped."""
     st = EditorState(env[0])
     st.move(-1)
     assert st.left_idx == 0
@@ -50,6 +57,7 @@ def test_navigation_is_clamped(env):
 
 
 def test_enter_on_left_appends_and_blocks_duplicates(env):
+    """Verify enter on left appends and blocks duplicates."""
     st = EditorState(env[0])
     st.enter()
     assert names(st) == ["Alfa"] and st.dirty
@@ -59,12 +67,14 @@ def test_enter_on_left_appends_and_blocks_duplicates(env):
 
 
 def build_playlist(st, count=3):
+    """Produce the result for build playlist."""
     for _ in range(count):
         st.enter()
         st.move(1)
 
 
 def test_tab_toggles_focus_but_not_while_reordering(env):
+    """Verify tab toggles focus but not while reordering."""
     st = EditorState(env[0])
     build_playlist(st)
     st.toggle_focus()
@@ -79,6 +89,7 @@ def test_tab_toggles_focus_but_not_while_reordering(env):
 
 
 def test_reorder_moves_row_and_commit_keeps_it(env):
+    """Verify reorder moves row and commit keeps it."""
     st = EditorState(env[0])
     build_playlist(st)  # Alfa, Bravo, Charlie
     st.toggle_focus()
@@ -94,6 +105,7 @@ def test_reorder_moves_row_and_commit_keeps_it(env):
 
 
 def test_remove_from_playlist_only_in_right_panel(env):
+    """Verify remove from playlist only in right panel."""
     st = EditorState(env[0])
     build_playlist(st, 2)
     st.remove()  # focus is LEFT: ignored
@@ -105,6 +117,7 @@ def test_remove_from_playlist_only_in_right_panel(env):
 
 
 def test_remove_ignored_while_reordering(env):
+    """Verify remove ignored while reordering."""
     st = EditorState(env[0])
     build_playlist(st, 2)
     st.toggle_focus()
@@ -114,6 +127,7 @@ def test_remove_ignored_while_reordering(env):
 
 
 def test_delete_in_playlist_rings_bell_and_shows_error(env):
+    """Verify delete in playlist rings bell and shows error."""
     st = EditorState(env[0])
     st.enter()
     st.move(-1)
@@ -122,6 +136,7 @@ def test_delete_in_playlist_rings_bell_and_shows_error(env):
 
 
 def test_delete_requires_double_confirmation(env):
+    """Verify delete requires double confirmation."""
     db, ids, root = env
     st = EditorState(db)
     st.delete()
@@ -138,6 +153,7 @@ def test_delete_requires_double_confirmation(env):
 
 @pytest.mark.parametrize("first,second", [(False, None), (True, False)])
 def test_delete_cancelled_keeps_file(env, first, second):
+    """Verify delete cancelled keeps file."""
     db, _, root = env
     st = EditorState(db)
     st.delete()
@@ -149,6 +165,7 @@ def test_delete_cancelled_keeps_file(env, first, second):
 
 
 def test_delete_blocked_when_db_playlist_still_has_video(env):
+    """Verify delete blocked when db playlist still has video."""
     db, ids, _ = env
     db.add_to_playlist(ids["Alfa"])
     st = EditorState(db)
@@ -163,6 +180,7 @@ def test_delete_blocked_when_db_playlist_still_has_video(env):
 
 
 def test_save_writes_db_backups_and_mirror(env):
+    """Verify save writes db backups and mirror."""
     db, ids, root = env
     st = EditorState(db)
     build_playlist(st, 2)
@@ -176,12 +194,14 @@ def test_save_writes_db_backups_and_mirror(env):
 
 
 def test_quit_clean_exits_immediately(env):
+    """Verify quit clean exits immediately."""
     st = EditorState(env[0])
     st.request_quit()
     assert st.should_exit
 
 
 def test_quit_with_unsaved_changes_asks_confirmation(env):
+    """Verify quit with unsaved changes asks confirmation."""
     st = EditorState(env[0])
     st.enter()
     st.request_quit()
@@ -194,6 +214,7 @@ def test_quit_with_unsaved_changes_asks_confirmation(env):
 
 
 def test_keys_ignored_while_prompt_pending(env):
+    """Verify keys ignored while prompt pending."""
     st = EditorState(env[0])
     st.delete()
     st.move(1)
@@ -204,6 +225,7 @@ def test_keys_ignored_while_prompt_pending(env):
 
 
 def test_render_styles(env):
+    """Verify render styles."""
     st = EditorState(env[0])
     st.enter()  # Alfa in playlist
     left = st.render_panel(LEFT)
@@ -217,6 +239,7 @@ def test_render_styles(env):
 
 
 def test_render_fits_80x24_and_has_no_overflowing_lines(env):
+    """Verify render fits 80x24 and has no overflowing lines."""
     st = EditorState(env[0])
     assert len(S.UI_TUI_HEADER) <= 80 and len(S.UI_TUI_FOOTER) <= 160  # footer wraps on 2 lines
     for which in (LEFT, RIGHT):
@@ -225,6 +248,7 @@ def test_render_fits_80x24_and_has_no_overflowing_lines(env):
 
 
 def test_render_empty_panels(tmp_path):
+    """Verify render empty panels."""
     st = EditorState(Database(tmp_path))
     assert S.MSG_TUI_EMPTY_ARCHIVE in st.render_panel(LEFT).plain
     assert S.MSG_TUI_EMPTY_PLAYLIST in st.render_panel(RIGHT).plain
@@ -232,6 +256,7 @@ def test_render_empty_panels(tmp_path):
 
 
 def test_long_list_scrolls_with_cursor(tmp_path):
+    """Verify long list scrolls with cursor."""
     db = Database(tmp_path)
     for i in range(30):
         db.add_video(str(tmp_path / f"{i}.mp4"), f"Video {i:02d}")
@@ -243,6 +268,7 @@ def test_long_list_scrolls_with_cursor(tmp_path):
 
 
 def test_inspector_content(env):
+    """Verify inspector content."""
     db, _, root = env
     st = EditorState(db)
     text = st.render_inspector().plain
@@ -251,6 +277,7 @@ def test_inspector_content(env):
 
 
 def test_inspector_truncates_and_wraps(tmp_path):
+    """Verify inspector truncates and wraps."""
     db = Database(tmp_path)
     db.add_video(str(tmp_path / "a.mp4"), "T" * 38, "parola " * 30)
     text = EditorState(db).render_inspector().plain
@@ -260,9 +287,11 @@ def test_inspector_truncates_and_wraps(tmp_path):
 
 
 def test_app_runs_at_80x24_with_keys(env):
+    """Verify app runs at 80x24 with keys."""
     db, ids, _ = env
 
     async def scenario():
+        """Handle scenario operations."""
         app = build_app(db)
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.press("enter", "down", "enter")
@@ -284,6 +313,7 @@ def test_app_runs_at_80x24_with_keys(env):
 # ------------------------------------------------------------------ gap closing
 
 def test_palette_selection_by_terminal_capability():
+    """Verify palette selection by terminal capability."""
     assert select_palette({"COLORTERM": "truecolor"}) is TRUECOLOR_PALETTE
     assert select_palette({"COLORTERM": "24bit"}) is TRUECOLOR_PALETTE
     assert select_palette({"TERM": "linux"}) is ANSI_PALETTE
@@ -292,6 +322,7 @@ def test_palette_selection_by_terminal_capability():
 
 @pytest.mark.parametrize("palette", [ANSI_PALETTE, TRUECOLOR_PALETTE])
 def test_both_palettes_render_playlist_and_reorder_colors(env, palette):
+    """Verify both palettes render playlist and reorder colors."""
     st = EditorState(env[0], palette)
     st.enter()
     assert any(palette["in_playlist"] in str(sp.style) for sp in st.render_panel(LEFT).spans)
@@ -301,11 +332,13 @@ def test_both_palettes_render_playlist_and_reorder_colors(env, palette):
 
 
 def test_ansi_palette_uses_only_basic_named_colors():
+    """Verify ansi palette uses only basic named colors."""
     for style in ANSI_PALETTE.values():
         assert "#" not in style
 
 
 def test_delete_missing_file_shows_error_and_keeps_video(env):
+    """Verify delete missing file shows error and keeps video."""
     db, _, root = env
     (root / "Alfa.mp4").unlink()
     st = EditorState(db)
@@ -318,6 +351,7 @@ def test_delete_missing_file_shows_error_and_keeps_video(env):
 
 
 def test_delete_last_videos_leaves_usable_empty_archive(tmp_path):
+    """Verify delete last videos leaves usable empty archive."""
     db = Database(tmp_path)
     f = tmp_path / "a.mp4"
     f.write_bytes(b"x")
@@ -333,6 +367,7 @@ def test_delete_last_videos_leaves_usable_empty_archive(tmp_path):
 
 
 def test_empty_playlist_actions_are_noops(env):
+    """Verify empty playlist actions are noops."""
     st = EditorState(env[0])
     st.toggle_focus()
     st.enter()
@@ -343,6 +378,7 @@ def test_empty_playlist_actions_are_noops(env):
 
 
 def test_reorder_with_single_item_is_stable(env):
+    """Verify reorder with single item is stable."""
     st = EditorState(env[0])
     st.enter()
     st.toggle_focus()
@@ -353,6 +389,7 @@ def test_reorder_with_single_item_is_stable(env):
 
 
 def test_save_while_reordering_persists_and_leaves_reorder(env):
+    """Verify save while reordering persists and leaves reorder."""
     db, ids, _ = env
     st = EditorState(db)
     build_playlist(st, 2)
@@ -365,6 +402,7 @@ def test_save_while_reordering_persists_and_leaves_reorder(env):
 
 
 def test_save_without_changes_is_harmless(env):
+    """Verify save without changes is harmless."""
     db, _, _ = env
     st = EditorState(db)
     st.save()
@@ -372,6 +410,7 @@ def test_save_without_changes_is_harmless(env):
 
 
 def test_dirty_flag_lifecycle(env):
+    """Verify dirty flag lifecycle."""
     st = EditorState(env[0])
     assert not st.dirty
     st.enter()
@@ -385,7 +424,9 @@ def test_dirty_flag_lifecycle(env):
 
 
 def _run(db, keys, size=(80, 24)):
+    """Handle run operations."""
     async def scenario():
+        """Handle scenario operations."""
         app = build_app(db)
         async with app.run_test(size=size) as pilot:
             for key in keys:
@@ -396,6 +437,7 @@ def _run(db, keys, size=(80, 24)):
 
 
 def test_app_delete_flow_with_keys(env):
+    """Verify app delete flow with keys."""
     db, _, root = env
     _, msg, _, _ = _run(db, ["c", "s", "S"])
     assert msg == S.MSG_TUI_DELETED.format(title="Alfa")
@@ -404,12 +446,14 @@ def test_app_delete_flow_with_keys(env):
 
 @pytest.mark.parametrize("answer", ["n", "enter", "escape", "x"])
 def test_app_any_non_s_answer_cancels(env, answer):
+    """Verify app any non s answer cancels."""
     db, _, root = env
     _, _, pending, _ = _run(db, ["c", answer])
     assert pending is None and (root / "Alfa.mp4").exists()
 
 
 def test_app_quit_with_unsaved_changes_requires_confirmation(env):
+    """Verify app quit with unsaved changes requires confirmation."""
     _, _, pending, exited = _run(env[0], ["enter", "q"])
     assert pending == "quit" and not exited
     _, _, pending, exited = _run(env[0], ["enter", "q", "n"])
@@ -419,6 +463,7 @@ def test_app_quit_with_unsaved_changes_requires_confirmation(env):
 
 
 def test_app_rings_terminal_bell_on_protected_delete(env, monkeypatch):
+    """Verify app rings terminal bell on protected delete."""
     from textual.app import App
 
     rings = []
@@ -428,10 +473,12 @@ def test_app_rings_terminal_bell_on_protected_delete(env, monkeypatch):
 
 
 def test_app_fits_in_80x24_with_every_panel_full(tmp_path):
+    """Verify app fits in 80x24 with every panel full."""
     db = Database(tmp_path)
     for i in range(30):
         db.add_video(str(tmp_path / f"{i}.mp4"), "T" * 38, "d" * 150)
     async def scenario():
+        """Handle scenario operations."""
         app = build_app(db)
         async with app.run_test(size=(80, 24)) as pilot:
             for _ in range(15):
@@ -443,11 +490,14 @@ def test_app_fits_in_80x24_with_every_panel_full(tmp_path):
 
 
 def test_main_builds_app_with_default_database(monkeypatch, tmp_path):
+    """Verify main builds app with default database."""
     monkeypatch.setenv("SVF_ROOT", str(tmp_path))
     started = {}
 
     class FakeApp:
+        """Encapsulate fake app behavior."""
         def run(self):
+            """Handle run operations."""
             started["ran"] = True
 
     monkeypatch.setattr(playlist_editor, "build_app", lambda db: (started.setdefault("root", db.root), FakeApp())[1])
@@ -457,6 +507,7 @@ def test_main_builds_app_with_default_database(monkeypatch, tmp_path):
 
 # ---- remote presets (P key) ---------------------------------------------
 def press(state, *keys):
+    """Handle press operations."""
     for k in keys:
         if state.awaiting_preset:
             state.press_preset_key(k)
@@ -465,6 +516,7 @@ def press(state, *keys):
 
 
 def test_preset_assign_marks_dirty_and_shows_message(env):
+    """Verify preset assign marks dirty and shows message."""
     db, ids, _ = env
     st = EditorState(db)  # cursor on Alfa
     press(st, "p")
@@ -475,6 +527,7 @@ def test_preset_assign_marks_dirty_and_shows_message(env):
 
 
 def test_preset_not_saved_until_s_and_saved_with_playlist(env):
+    """Verify preset not saved until s and saved with playlist."""
     db, ids, _ = env
     st = EditorState(db)
     press(st, "p", "3")
@@ -485,12 +538,14 @@ def test_preset_not_saved_until_s_and_saved_with_playlist(env):
 
 
 def test_preset_loaded_from_database_on_start(env):
+    """Verify preset loaded from database on start."""
     db, ids, _ = env
     db.set_remote_preset(7, ids["Bravo"])
     assert EditorState(db).presets == {7: ids["Bravo"]}
 
 
 def test_preset_reassigning_a_key_moves_it(env):
+    """Verify preset reassigning a key moves it."""
     db, ids, _ = env
     st = EditorState(db)
     press(st, "p", "2")
@@ -500,6 +555,7 @@ def test_preset_reassigning_a_key_moves_it(env):
 
 
 def test_one_video_can_hold_several_keys_and_badge_lists_them(env):
+    """Verify one video can hold several keys and badge lists them."""
     db, ids, _ = env
     st = EditorState(db)
     press(st, "p", "5", "p", "1")
@@ -508,6 +564,7 @@ def test_one_video_can_hold_several_keys_and_badge_lists_them(env):
 
 
 def test_preset_zero_clears_all_keys_of_video(env):
+    """Verify preset zero clears all keys of video."""
     db, ids, _ = env
     st = EditorState(db)
     press(st, "p", "5", "p", "1")
@@ -518,6 +575,7 @@ def test_preset_zero_clears_all_keys_of_video(env):
 
 
 def test_preset_zero_on_video_without_keys_is_a_noop(env):
+    """Verify preset zero on video without keys is a noop."""
     db, *_ = env
     st = EditorState(db)
     press(st, "p", "0")
@@ -525,6 +583,7 @@ def test_preset_zero_on_video_without_keys_is_a_noop(env):
 
 
 def test_preset_escape_cancels(env):
+    """Verify preset escape cancels."""
     db, *_ = env
     st = EditorState(db)
     press(st, "p", "escape")
@@ -532,6 +591,7 @@ def test_preset_escape_cancels(env):
 
 
 def test_preset_invalid_key_keeps_waiting(env):
+    """Verify preset invalid key keeps waiting."""
     db, *_ = env
     st = EditorState(db)
     press(st, "p", "x")
@@ -541,6 +601,7 @@ def test_preset_invalid_key_keeps_waiting(env):
 
 
 def test_preset_works_from_right_panel(env):
+    """Verify preset works from right panel."""
     db, ids, _ = env
     st = EditorState(db)
     st.enter()  # Alfa -> playlist
@@ -550,6 +611,7 @@ def test_preset_works_from_right_panel(env):
 
 
 def test_preset_ignored_while_reordering_or_confirming(env):
+    """Verify preset ignored while reordering or confirming."""
     db, *_ = env
     st = EditorState(db)
     st.enter()
@@ -568,6 +630,7 @@ def test_preset_ignored_while_reordering_or_confirming(env):
 
 
 def test_actions_are_blocked_while_waiting_for_a_preset_key(env):
+    """Verify actions are blocked while waiting for a preset key."""
     db, *_ = env
     st = EditorState(db)
     st.start_preset()
@@ -584,6 +647,7 @@ def test_actions_are_blocked_while_waiting_for_a_preset_key(env):
 
 
 def test_deleting_a_video_drops_its_presets(env):
+    """Verify deleting a video drops its presets."""
     db, ids, _ = env
     st = EditorState(db)
     press(st, "p", "6")
@@ -596,6 +660,7 @@ def test_deleting_a_video_drops_its_presets(env):
 
 
 def test_badge_never_overflows_panel_width(env):
+    """Verify badge never overflows panel width."""
     db, *_ = env
     st = EditorState(db)
     press(st, *"p1p2p3p4p5p6p7p8p9")
@@ -605,22 +670,26 @@ def test_badge_never_overflows_panel_width(env):
 
 
 def test_footer_mentions_preset_key_and_fits_two_lines():
+    """Verify footer mentions preset key and fits two lines."""
     assert "[P] Preset" in S.UI_TUI_FOOTER and len(S.UI_TUI_FOOTER) <= 160
 
 
 def test_app_p_then_digit_flow_and_save(env):
+    """Verify app p then digit flow and save."""
     db, ids, _ = env
     _, _, _, exited = _run(db, ["p", "2", "s", "q"])
     assert db.get_remote_presets()[2]["id"] == ids["Alfa"] and exited
 
 
 def test_app_keys_after_p_do_not_trigger_other_actions(env):
+    """Verify app keys after p do not trigger other actions."""
     db, _, _ = env
     _, msg, _, exited = _run(db, ["p", "q"])
     assert not exited and msg == S.MSG_TUI_PRESET_INVALID
 
 
 def test_save_does_not_erase_presets_set_by_cli_meanwhile(env):
+    """Verify save does not erase presets set by cli meanwhile."""
     db, ids, _ = env
     st = EditorState(db)  # opened with no presets
     db.set_remote_preset(8, ids["Bravo"])  # CLI assigns while the editor is open
@@ -631,6 +700,7 @@ def test_save_does_not_erase_presets_set_by_cli_meanwhile(env):
 
 
 def test_save_still_applies_removals_made_in_editor(env):
+    """Verify save still applies removals made in editor."""
     db, ids, _ = env
     db.set_remote_presets({1: ids["Alfa"], 2: ids["Bravo"]})
     st = EditorState(db)
@@ -640,6 +710,7 @@ def test_save_still_applies_removals_made_in_editor(env):
 
 
 def test_editor_assignment_wins_over_concurrent_cli_on_same_key(env):
+    """Verify editor assignment wins over concurrent cli on same key."""
     db, ids, _ = env
     st = EditorState(db)
     db.set_remote_preset(3, ids["Bravo"])

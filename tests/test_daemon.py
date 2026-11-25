@@ -16,58 +16,73 @@ from src.db.database import Database
 
 
 class FakeMpv:
+    """Encapsulate fake mpv behavior."""
     def __init__(self):
+        """Initialize the instance."""
         self.calls = []
         self.idle = False
         self.fail = False
 
     def _check(self):
+        """Handle check operations."""
         if self.fail:
             raise MpvIpcError("down")
 
     def load_file(self, path, mode="replace"):
+        """Produce the result for load file."""
         self._check()
         self.calls.append(("load", path))
         self.idle = False
 
     def resume(self):
+        """Handle resume operations."""
         self.calls.append(("resume",))
 
     def stop(self):
+        """Handle stop operations."""
         self._check()
         self.calls.append(("stop",))
 
     def show_osd(self, text, duration_ms=3000):
+        """Handle show osd operations."""
         self._check()
         self.calls.append(("osd", text, duration_ms))
 
     def get_property(self, name):
+        """Return data for get property."""
         self._check()
         assert name == "idle-active"
         return self.idle
 
     @property
     def loaded(self):
+        """Handle loaded operations."""
         return [c[1] for c in self.calls if c[0] == "load"]
 
     @property
     def osds(self):
+        """Handle osds operations."""
         return [c[1] for c in self.calls if c[0] == "osd"]
 
 
 class Clock:
+    """Encapsulate clock behavior."""
     def __init__(self):
+        """Initialize the instance."""
         self.t = 100.0
 
     def __call__(self):
+        """Handle call operations."""
         return self.t
 
     def advance(self, seconds):
+        """Handle advance operations."""
         self.t += seconds
 
 
 @pytest.fixture
 def env(tmp_path):
+    """Handle env operations."""
     db = Database(tmp_path)
     ids = {}
     for name in ("A", "B", "C", "D"):
@@ -81,22 +96,26 @@ def env(tmp_path):
 
 
 def finish(ctl, mpv, clock):
+    """Handle finish operations."""
     clock.advance(2)
     mpv.idle = True
     ctl.tick()
 
 
 def name_of(ctl):
+    """Handle name of operations."""
     return ctl.current["display_title"]
 
 
 # ---- pure functions -------------------------------------------------
 @pytest.mark.parametrize("idx,total,expected", [(0, 3, 1), (1, 3, 2), (2, 3, 0), (0, 1, 0), (0, 0, 0)])
 def test_next_index(idx, total, expected):
+    """Verify next index."""
     assert next_index(idx, total) == expected
 
 
 def test_mpv_command_line_has_required_flags():
+    """Verify mpv command line has required flags."""
     cmd = mpv_command_line("/run/svf-kiosk/mpv.sock")
     for flag in ("--vo=gpu", "--hwdec=auto-safe", "--fullscreen", "--no-terminal",
                  "--cursor-autohide=always", "--cursor-autohide-fs-only",
@@ -107,6 +126,7 @@ def test_mpv_command_line_has_required_flags():
 
 
 def test_osd_escape():
+    """Verify osd escape."""
     assert osd_escape("a$b{c}\\d") == "a$$b(c)/d"
 
 
@@ -116,11 +136,13 @@ def test_osd_escape():
     (2, 0, None), (2, 2, None), (999, 1, None), (11, 1, None),
 ])
 def test_key_from_event(code, value, expected):
+    """Verify key from event."""
     assert key_from_event(code, value) == expected
 
 
 # ---- ambient loop ---------------------------------------------------
 def test_start_plays_first_video(env):
+    """Verify start plays first video."""
     ctl, _, mpv, *_ = env
     ctl.start()
     assert ctl.mode == AMBIENT and name_of(ctl) == "Video A"
@@ -128,6 +150,7 @@ def test_start_plays_first_video(env):
 
 
 def test_ambient_rotates_and_wraps(env):
+    """Verify ambient rotates and wraps."""
     ctl, _, mpv, clock, *_ = env
     ctl.start()
     seen = [name_of(ctl)]
@@ -138,6 +161,7 @@ def test_ambient_rotates_and_wraps(env):
 
 
 def test_no_advance_while_playing_or_in_grace(env):
+    """Verify no advance while playing or in grace."""
     ctl, _, mpv, clock, *_ = env
     ctl.start()
     mpv.idle = True
@@ -150,6 +174,7 @@ def test_no_advance_while_playing_or_in_grace(env):
 
 
 def test_empty_playlist_shows_standby(env):
+    """Verify empty playlist shows standby."""
     ctl, db, mpv, clock, *_ = env
     db.set_playlist([])
     ctl.start()
@@ -165,6 +190,7 @@ def test_empty_playlist_shows_standby(env):
 
 
 def test_standby_starts_ambient_when_playlist_filled(env):
+    """Verify standby starts ambient when playlist filled."""
     ctl, db, mpv, clock, ids, _ = env
     db.set_playlist([])
     ctl.start()
@@ -175,6 +201,7 @@ def test_standby_starts_ambient_when_playlist_filled(env):
 
 
 def test_playlist_emptied_during_ambient_goes_to_standby(env):
+    """Verify playlist emptied during ambient goes to standby."""
     ctl, db, mpv, clock, *_ = env
     ctl.start()
     db.set_playlist([])
@@ -183,6 +210,7 @@ def test_playlist_emptied_during_ambient_goes_to_standby(env):
 
 
 def test_playlist_edit_is_picked_up_without_restart(env):
+    """Verify playlist edit is picked up without restart."""
     ctl, db, mpv, clock, ids, _ = env
     ctl.start()
     db.set_playlist([ids["D"], ids["A"]])
@@ -195,6 +223,7 @@ def test_playlist_edit_is_picked_up_without_restart(env):
 
 
 def test_missing_file_is_skipped(env):
+    """Verify missing file is skipped."""
     ctl, _, mpv, _, _, root = env
     (root / "A.mp4").unlink()
     ctl.start()
@@ -202,6 +231,7 @@ def test_missing_file_is_skipped(env):
 
 
 def test_all_files_missing_falls_back_to_standby(env):
+    """Verify all files missing falls back to standby."""
     ctl, _, mpv, _, _, root = env
     for n in "ABC":
         (root / f"{n}.mp4").unlink()
@@ -211,6 +241,7 @@ def test_all_files_missing_falls_back_to_standby(env):
 
 # ---- presets and resumption ------------------------------------------
 def test_preset_interrupts_and_shows_osd(env):
+    """Verify preset interrupts and shows osd."""
     ctl, db, mpv, _, ids, root = env
     db.set_remote_preset(4, ids["D"])
     ctl.start()
@@ -222,6 +253,7 @@ def test_preset_interrupts_and_shows_osd(env):
 
 
 def test_unmapped_preset_does_nothing_but_inform(env):
+    """Verify unmapped preset does nothing but inform."""
     ctl, _, mpv, *_ = env
     ctl.start()
     ctl.handle_key("7")
@@ -231,6 +263,7 @@ def test_unmapped_preset_does_nothing_but_inform(env):
 
 @pytest.mark.parametrize("interrupted,expected", [(0, "Video B"), (1, "Video C"), (2, "Video A")])
 def test_resume_after_natural_end_plays_next_video(env, interrupted, expected):
+    """Verify resume after natural end plays next video."""
     ctl, db, mpv, clock, ids, _ = env
     db.set_remote_preset(1, ids["D"])
     ctl.start()
@@ -243,6 +276,7 @@ def test_resume_after_natural_end_plays_next_video(env, interrupted, expected):
 
 
 def test_resume_after_esc_plays_next_video_not_the_interrupted(env):
+    """Verify resume after esc plays next video not the interrupted."""
     ctl, db, mpv, clock, ids, root = env
     db.set_remote_preset(1, ids["D"])
     ctl.start()
@@ -255,6 +289,7 @@ def test_resume_after_esc_plays_next_video_not_the_interrupted(env):
 
 
 def test_second_preset_keeps_original_interrupted_index(env):
+    """Verify second preset keeps original interrupted index."""
     ctl, db, mpv, clock, ids, _ = env
     db.set_remote_preset(1, ids["D"])
     db.set_remote_preset(2, ids["C"])
@@ -267,6 +302,7 @@ def test_second_preset_keeps_original_interrupted_index(env):
 
 
 def test_esc_during_ambient_is_ignored(env):
+    """Verify esc during ambient is ignored."""
     ctl, _, mpv, *_ = env
     ctl.start()
     n = len(mpv.calls)
@@ -275,6 +311,7 @@ def test_esc_during_ambient_is_ignored(env):
 
 
 def test_resume_wraps_when_single_item_playlist(env):
+    """Verify resume wraps when single item playlist."""
     ctl, db, mpv, clock, ids, _ = env
     db.set_playlist([ids["A"]])
     db.set_remote_preset(1, ids["D"])
@@ -285,6 +322,7 @@ def test_resume_wraps_when_single_item_playlist(env):
 
 
 def test_on_demand_from_empty_playlist_then_standby(env):
+    """Verify on demand from empty playlist then standby."""
     ctl, db, mpv, clock, ids, _ = env
     db.set_playlist([])
     db.set_remote_preset(1, ids["D"])
@@ -296,6 +334,7 @@ def test_on_demand_from_empty_playlist_then_standby(env):
 
 
 def test_preset_with_missing_file_reports_error(env):
+    """Verify preset with missing file reports error."""
     ctl, db, mpv, _, ids, root = env
     db.set_remote_preset(1, ids["D"])
     (root / "D.mp4").unlink()
@@ -306,6 +345,7 @@ def test_preset_with_missing_file_reports_error(env):
 
 
 def test_preset_for_deleted_video_is_unmapped(env):
+    """Verify preset for deleted video is unmapped."""
     ctl, db, mpv, _, ids, root = env
     db.set_remote_preset(1, ids["D"])
     db.soft_delete_video(ids["D"], root / "trash")
@@ -316,6 +356,7 @@ def test_preset_for_deleted_video_is_unmapped(env):
 
 # ---- carousel menu ----------------------------------------------------
 def test_menu_opens_navigates_wraps_and_selects(env):
+    """Verify menu opens navigates wraps and selects."""
     ctl, _, mpv, *_ = env
     ctl.start()
     ctl.handle_key("menu")
@@ -334,6 +375,7 @@ def test_menu_opens_navigates_wraps_and_selects(env):
 
 
 def test_ok_opens_menu_when_closed(env):
+    """Verify ok opens menu when closed."""
     ctl, *_ = env
     ctl.start()
     ctl.handle_key("ok")
@@ -341,6 +383,7 @@ def test_ok_opens_menu_when_closed(env):
 
 
 def test_menu_renders_lower_third_with_titles(env):
+    """Verify menu renders lower third with titles."""
     ctl, _, mpv, *_ = env
     ctl.start()
     ctl.handle_key("menu")
@@ -349,6 +392,7 @@ def test_menu_renders_lower_third_with_titles(env):
 
 
 def test_esc_closes_menu_without_aborting(env):
+    """Verify esc closes menu without aborting."""
     ctl, db, mpv, _, ids, _ = env
     db.set_remote_preset(1, ids["D"])
     ctl.start()
@@ -359,6 +403,7 @@ def test_esc_closes_menu_without_aborting(env):
 
 
 def test_menu_times_out(env):
+    """Verify menu times out."""
     ctl, _, mpv, clock, *_ = env
     ctl.start()
     ctl.handle_key("menu")
@@ -368,6 +413,7 @@ def test_menu_times_out(env):
 
 
 def test_menu_toggle_with_menu_key(env):
+    """Verify menu toggle with menu key."""
     ctl, *_ = env
     ctl.start()
     ctl.handle_key("menu")
@@ -376,6 +422,7 @@ def test_menu_toggle_with_menu_key(env):
 
 
 def test_menu_ignored_when_archive_empty(tmp_path):
+    """Verify menu ignored when archive empty."""
     db = Database(tmp_path)
     mpv = FakeMpv()
     ctl = PlaybackController(db, mpv, Clock())
@@ -385,6 +432,7 @@ def test_menu_ignored_when_archive_empty(tmp_path):
 
 
 def test_up_down_ignored_when_menu_closed(env):
+    """Verify up down ignored when menu closed."""
     ctl, _, mpv, *_ = env
     ctl.start()
     n = len(mpv.calls)
@@ -395,6 +443,7 @@ def test_up_down_ignored_when_menu_closed(env):
 
 # ---- recovery ---------------------------------------------------------
 def test_recover_replays_current_ambient_video(env):
+    """Verify recover replays current ambient video."""
     ctl, _, mpv, clock, *_ = env
     ctl.start()
     finish(ctl, mpv, clock)
@@ -403,6 +452,7 @@ def test_recover_replays_current_ambient_video(env):
 
 
 def test_recover_keeps_on_demand_state_and_index(env):
+    """Verify recover keeps on demand state and index."""
     ctl, db, mpv, clock, ids, _ = env
     db.set_remote_preset(1, ids["D"])
     ctl.start()
@@ -414,6 +464,7 @@ def test_recover_keeps_on_demand_state_and_index(env):
 
 
 def test_recover_when_empty_shows_standby(env):
+    """Verify recover when empty shows standby."""
     ctl, db, mpv, *_ = env
     db.set_playlist([])
     ctl.start()
@@ -423,6 +474,7 @@ def test_recover_when_empty_shows_standby(env):
 
 
 def test_mpv_error_propagates_from_tick(env):
+    """Verify mpv error propagates from tick."""
     ctl, _, mpv, clock, *_ = env
     ctl.start()
     clock.advance(2)
@@ -433,28 +485,36 @@ def test_mpv_error_propagates_from_tick(env):
 
 # ---- supervisor ---------------------------------------------------------
 class FakeProc:
+    """Encapsulate fake proc behavior."""
     def __init__(self, dead=False):
+        """Initialize the instance."""
         self.dead = dead
         self.terminated = self.killed = False
 
     def poll(self):
+        """Handle poll operations."""
         return 1 if self.dead else None
 
     def terminate(self):
+        """Handle terminate operations."""
         self.terminated = True
         self.dead = True
 
     def wait(self, timeout=None):
+        """Handle wait operations."""
         return 0
 
     def kill(self):
+        """Handle kill operations."""
         self.killed = True
 
 
 def make_supervisor(tmp_path, procs):
+    """Produce the result for make supervisor."""
     launched = []
 
     def popen(cmd, env=None):
+        """Handle popen operations."""
         launched.append((cmd, env))
         return procs.pop(0)
 
@@ -463,6 +523,7 @@ def make_supervisor(tmp_path, procs):
 
 
 def test_supervisor_starts_with_x11_env_and_no_wayland(tmp_path, monkeypatch):
+    """Verify supervisor starts with x11 env and no wayland."""
     monkeypatch.delenv("DISPLAY", raising=False)
     monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-0")
     sup, launched = make_supervisor(tmp_path, [FakeProc()])
@@ -473,6 +534,7 @@ def test_supervisor_starts_with_x11_env_and_no_wayland(tmp_path, monkeypatch):
 
 
 def test_supervisor_removes_stale_socket_on_start(tmp_path):
+    """Verify supervisor removes stale socket on start."""
     sup, _ = make_supervisor(tmp_path, [FakeProc()])
     os.makedirs(os.path.dirname(sup.socket_path))
     open(sup.socket_path, "w").close()
@@ -481,6 +543,7 @@ def test_supervisor_removes_stale_socket_on_start(tmp_path):
 
 
 def test_watchdog_restarts_dead_mpv(tmp_path):
+    """Verify watchdog restarts dead mpv."""
     first, second = FakeProc(), FakeProc()
     sup, launched = make_supervisor(tmp_path, [first, second])
     sup.start()
@@ -492,6 +555,7 @@ def test_watchdog_restarts_dead_mpv(tmp_path):
 
 
 def test_stop_terminates_and_removes_socket(tmp_path):
+    """Verify stop terminates and removes socket."""
     proc = FakeProc()
     sup, _ = make_supervisor(tmp_path, [proc])
     sup.start()
@@ -501,13 +565,17 @@ def test_stop_terminates_and_removes_socket(tmp_path):
 
 
 def test_stop_kills_when_terminate_times_out(tmp_path):
+    """Verify stop kills when terminate times out."""
     import subprocess
 
     class Stubborn(FakeProc):
+        """Encapsulate stubborn behavior."""
         def terminate(self):
+            """Handle terminate operations."""
             self.terminated = True
 
         def wait(self, timeout=None):
+            """Handle wait operations."""
             if not self.killed:
                 raise subprocess.TimeoutExpired("mpv", timeout)
 
@@ -519,6 +587,7 @@ def test_stop_kills_when_terminate_times_out(tmp_path):
 
 
 def test_wait_for_socket(tmp_path):
+    """Verify wait for socket."""
     sup, _ = make_supervisor(tmp_path, [FakeProc()])
     sup.start()
     assert sup.wait_for_socket(0.2) is False
@@ -527,6 +596,7 @@ def test_wait_for_socket(tmp_path):
 
 
 def test_wait_for_socket_gives_up_when_process_dies(tmp_path):
+    """Verify wait for socket gives up when process dies."""
     sup, _ = make_supervisor(tmp_path, [FakeProc(dead=True)])
     sup.start()
     assert sup.wait_for_socket(1) is False
@@ -534,6 +604,7 @@ def test_wait_for_socket_gives_up_when_process_dies(tmp_path):
 
 # ---- run loop ------------------------------------------------------------
 def test_run_graceful_shutdown_and_restart(tmp_path, monkeypatch):
+    """Verify run graceful shutdown and restart."""
     db = Database(tmp_path)
     f = tmp_path / "A.mp4"
     f.write_bytes(b"x")
@@ -548,6 +619,7 @@ def test_run_graceful_shutdown_and_restart(tmp_path, monkeypatch):
     monkeypatch.setattr(kp.MpvClient, "get_property", lambda self, n: False)
 
     async def scenario():
+        """Handle scenario operations."""
         stop = asyncio.Event()
         task = asyncio.create_task(kp.run(db, sup, stop, devices=[], tick_seconds=0.05))
         await asyncio.sleep(0.3)
@@ -562,14 +634,17 @@ def test_run_graceful_shutdown_and_restart(tmp_path, monkeypatch):
 
 
 def test_listen_remote_without_devices_returns(monkeypatch):
+    """Verify listen remote without devices returns."""
     asyncio.run(asyncio.wait_for(kp.listen_remote(lambda k: None, devices=[]), 2))
 
 
 def test_listen_remote_without_evdev_returns(monkeypatch):
+    """Verify listen remote without evdev returns."""
     import builtins
     real = builtins.__import__
 
     def fake(name, *a, **k):
+        """Handle fake operations."""
         if name == "evdev":
             raise ImportError
         return real(name, *a, **k)
@@ -579,6 +654,7 @@ def test_listen_remote_without_evdev_returns(monkeypatch):
 
 
 def test_find_input_devices(tmp_path):
+    """Verify find input devices."""
     for n in (2, 1):
         (tmp_path / f"event{n}").touch()
     assert kp.find_input_devices(str(tmp_path / "event*")) == [
@@ -586,6 +662,7 @@ def test_find_input_devices(tmp_path):
 
 
 def test_main_runs_and_defaults_display(monkeypatch):
+    """Verify main runs and defaults display."""
     monkeypatch.delenv("DISPLAY", raising=False)
     monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
     monkeypatch.setattr(kp, "run", lambda: asyncio.sleep(0))
@@ -595,6 +672,7 @@ def test_main_runs_and_defaults_display(monkeypatch):
 
 # ---- gap closing: controller branches -----------------------------------
 def test_reload_keeps_following_current_video_when_playlist_reordered(env):
+    """Verify reload keeps following current video when playlist reordered."""
     ctl, db, mpv, clock, ids, _ = env
     ctl.start()
     finish(ctl, mpv, clock)  # B playing
@@ -604,6 +682,7 @@ def test_reload_keeps_following_current_video_when_playlist_reordered(env):
 
 
 def test_reload_when_current_video_removed_clamps_index(env):
+    """Verify reload when current video removed clamps index."""
     ctl, db, mpv, clock, ids, _ = env
     ctl.start()
     finish(ctl, mpv, clock)
@@ -616,6 +695,7 @@ def test_reload_when_current_video_removed_clamps_index(env):
 
 
 def test_reload_during_standby_clamps_index(env):
+    """Verify reload during standby clamps index."""
     ctl, db, *_ = env
     ctl.mode, ctl.index = EMPTY, 7
     ctl.reload_playlist()
@@ -623,6 +703,7 @@ def test_reload_during_standby_clamps_index(env):
 
 
 def test_playlist_not_reloaded_during_on_demand(env):
+    """Verify playlist not reloaded during on demand."""
     ctl, db, mpv, clock, ids, _ = env
     db.set_remote_preset(1, ids["D"])
     ctl.start()
@@ -634,6 +715,7 @@ def test_playlist_not_reloaded_during_on_demand(env):
 
 
 def test_resume_uses_playlist_edited_during_on_demand(env):
+    """Verify resume uses playlist edited during on demand."""
     ctl, db, mpv, clock, ids, _ = env
     db.set_remote_preset(1, ids["D"])
     ctl.start()
@@ -644,6 +726,7 @@ def test_resume_uses_playlist_edited_during_on_demand(env):
 
 
 def test_recover_when_current_file_vanished_restarts_rotation(env):
+    """Verify recover when current file vanished restarts rotation."""
     ctl, _, mpv, _, _, root = env
     ctl.start()
     (root / "A.mp4").unlink()
@@ -652,6 +735,7 @@ def test_recover_when_current_file_vanished_restarts_rotation(env):
 
 
 def test_recover_during_menu_keeps_menu_state_consistent(env):
+    """Verify recover during menu keeps menu state consistent."""
     ctl, *_ = env
     ctl.start()
     ctl.handle_key("menu")
@@ -661,6 +745,7 @@ def test_recover_during_menu_keeps_menu_state_consistent(env):
 
 
 def test_menu_cursor_starts_on_current_video(env):
+    """Verify menu cursor starts on current video."""
     ctl, _, mpv, clock, *_ = env
     ctl.start()
     finish(ctl, mpv, clock)
@@ -669,6 +754,7 @@ def test_menu_cursor_starts_on_current_video(env):
 
 
 def test_menu_includes_archive_videos_not_in_playlist(env):
+    """Verify menu includes archive videos not in playlist."""
     ctl, *_ = env
     ctl.start()
     ctl.handle_key("menu")
@@ -677,6 +763,7 @@ def test_menu_includes_archive_videos_not_in_playlist(env):
 
 @pytest.mark.parametrize("count", [1, 2, 3])
 def test_menu_rendering_with_few_videos(tmp_path, count):
+    """Verify menu rendering with few videos."""
     db = Database(tmp_path)
     for i in range(count):
         f = tmp_path / f"{i}.mp4"
@@ -695,6 +782,7 @@ def test_menu_rendering_with_few_videos(tmp_path, count):
 
 
 def test_menu_titles_are_escaped(tmp_path):
+    """Verify menu titles are escaped."""
     db = Database(tmp_path)
     f = tmp_path / "x.mp4"
     f.write_bytes(b"x")
@@ -708,6 +796,7 @@ def test_menu_titles_are_escaped(tmp_path):
 
 
 def test_trigger_osd_title_is_escaped(env):
+    """Verify trigger osd title is escaped."""
     ctl, db, mpv, _, ids, root = env
     f = root / "E.mp4"
     f.write_bytes(b"x")
@@ -719,6 +808,7 @@ def test_trigger_osd_title_is_escaped(env):
 
 
 def test_menu_selection_from_standby_plays_on_demand(env):
+    """Verify menu selection from standby plays on demand."""
     ctl, db, mpv, clock, *_ = env
     db.set_playlist([])
     ctl.start()
@@ -730,6 +820,7 @@ def test_menu_selection_from_standby_plays_on_demand(env):
 
 
 def test_mpv_error_in_handle_key_propagates(env):
+    """Verify mpv error in handle key propagates."""
     ctl, db, mpv, _, ids, _ = env
     db.set_remote_preset(1, ids["D"])
     ctl.start()
@@ -739,6 +830,7 @@ def test_mpv_error_in_handle_key_propagates(env):
 
 
 def test_unknown_key_names_are_ignored(env):
+    """Verify unknown key names are ignored."""
     ctl, _, mpv, *_ = env
     ctl.start()
     n = len(mpv.calls)
@@ -747,12 +839,14 @@ def test_unknown_key_names_are_ignored(env):
 
 
 def test_every_digit_key_code_maps_once():
+    """Verify every digit key code maps once."""
     digits = sorted(v for v in kp.KEY_CODES.values() if v.isdigit())
     assert digits == sorted(list("123456789") * 2)
     assert {kp.KEY_CODES[c] for c in (2, 3, 4, 5, 6, 7, 8, 9, 10)} == set("123456789")
 
 
 def test_missing_mpv_state_after_restart_keeps_index(env):
+    """Verify missing mpv state after restart keeps index."""
     ctl, _, mpv, clock, *_ = env
     ctl.start()
     finish(ctl, mpv, clock)
@@ -764,7 +858,9 @@ def test_missing_mpv_state_after_restart_keeps_index(env):
 
 # ---- gap closing: run loop errors, wayland, main ---------------------------
 def _run_for(db, sup, seconds=0.4, **patches):
+    """Handle run for operations."""
     async def scenario():
+        """Handle scenario operations."""
         stop = asyncio.Event()
         task = asyncio.create_task(kp.run(db, sup, stop, devices=[], tick_seconds=0.05))
         await asyncio.sleep(seconds)
@@ -774,6 +870,7 @@ def _run_for(db, sup, seconds=0.4, **patches):
 
 
 def test_run_survives_mpv_errors_and_logs_them(tmp_path, monkeypatch, caplog):
+    """Verify run survives mpv errors and logs them."""
     db = Database(tmp_path)
     f = tmp_path / "A.mp4"
     f.write_bytes(b"x")
@@ -782,6 +879,7 @@ def test_run_survives_mpv_errors_and_logs_them(tmp_path, monkeypatch, caplog):
     attempts = []
 
     def boom(self, *a, **k):
+        """Handle boom operations."""
         attempts.append(1)
         raise MpvIpcError("down")
 
@@ -792,6 +890,7 @@ def test_run_survives_mpv_errors_and_logs_them(tmp_path, monkeypatch, caplog):
 
 
 def test_run_logs_when_mpv_socket_never_appears(tmp_path, monkeypatch, caplog):
+    """Verify run logs when mpv socket never appears."""
     db = Database(tmp_path)
     sup, _ = make_supervisor(tmp_path, [FakeProc(dead=True), FakeProc()])
     monkeypatch.setattr(kp.MpvClient, "stop", lambda self: None)
@@ -802,6 +901,7 @@ def test_run_logs_when_mpv_socket_never_appears(tmp_path, monkeypatch, caplog):
 
 
 def test_main_warns_on_wayland(monkeypatch, caplog):
+    """Verify main warns on wayland."""
     monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-0")
     monkeypatch.setattr(kp, "run", lambda: asyncio.sleep(0))
     with caplog.at_level("WARNING", logger="svf-kiosk"):
@@ -810,6 +910,7 @@ def test_main_warns_on_wayland(monkeypatch, caplog):
 
 
 def test_main_module_entry_point_exists():
+    """Verify main module entry point exists."""
     from importlib.metadata import entry_points
     names = {e.name: e.value for e in entry_points(group="console_scripts")}
     assert names.get("svf-kiosk-daemon") == "src.daemon.kiosk_player:main"
@@ -817,13 +918,17 @@ def test_main_module_entry_point_exists():
 
 # ---- gap closing: evdev listener with a fake evdev -------------------------
 class FakeEvdevModule:
+    """Encapsulate fake evdev module behavior."""
     class ecodes:
+        """Encapsulate ecodes behavior."""
         EV_KEY = 1
 
     def __init__(self, devices):
+        """Initialize the instance."""
         self.devices = devices
 
     def InputDevice(self, path):
+        """Handle input device operations."""
         dev = self.devices[path]
         if isinstance(dev, Exception):
             raise dev
@@ -831,18 +936,24 @@ class FakeEvdevModule:
 
 
 class FakeEvent:
+    """Encapsulate fake event behavior."""
     def __init__(self, type_, code, value):
+        """Initialize the instance."""
         self.type, self.code, self.value = type_, code, value
 
 
 class FakeDevice:
+    """Encapsulate fake device behavior."""
     def __init__(self, path, events, caps=(1,), fail=False):
+        """Initialize the instance."""
         self.path, self._events, self._caps, self._fail = path, events, caps, fail
 
     def capabilities(self):
+        """Handle capabilities operations."""
         return {c: [] for c in self._caps}
 
     async def async_read_loop(self):
+        """Handle async read loop operations."""
         for ev in self._events:
             yield ev
             await asyncio.sleep(0)
@@ -852,7 +963,9 @@ class FakeDevice:
 
 @pytest.fixture
 def fake_evdev(monkeypatch):
+    """Handle fake evdev operations."""
     def install(devices):
+        """Handle install operations."""
         module = FakeEvdevModule(devices)
         monkeypatch.setitem(__import__("sys").modules, "evdev", module)
         return module
@@ -860,6 +973,7 @@ def fake_evdev(monkeypatch):
 
 
 def test_listen_remote_dispatches_presses_only(fake_evdev):
+    """Verify listen remote dispatches presses only."""
     events = [FakeEvent(1, 3, 1), FakeEvent(1, 3, 0), FakeEvent(0, 3, 1), FakeEvent(1, 1, 1),
               FakeEvent(1, 108, 2), FakeEvent(1, 3, 2), FakeEvent(1, 999, 1)]
     fake_evdev({"/dev/input/event1": FakeDevice("/dev/input/event1", events)})
@@ -869,6 +983,7 @@ def test_listen_remote_dispatches_presses_only(fake_evdev):
 
 
 def test_listen_remote_merges_several_devices(fake_evdev):
+    """Verify listen remote merges several devices."""
     fake_evdev({
         "a": FakeDevice("a", [FakeEvent(1, 2, 1)]),
         "b": FakeDevice("b", [FakeEvent(1, 3, 1)]),
@@ -879,6 +994,7 @@ def test_listen_remote_merges_several_devices(fake_evdev):
 
 
 def test_listen_remote_skips_non_key_and_unreadable_devices(fake_evdev, caplog):
+    """Verify listen remote skips non key and unreadable devices."""
     fake_evdev({
         "mouse": FakeDevice("mouse", [FakeEvent(1, 2, 1)], caps=(2,)),
         "denied": PermissionError("no"),
@@ -890,6 +1006,7 @@ def test_listen_remote_skips_non_key_and_unreadable_devices(fake_evdev, caplog):
 
 
 def test_listen_remote_warns_when_nothing_usable(fake_evdev, caplog):
+    """Verify listen remote warns when nothing usable."""
     fake_evdev({"x": PermissionError("no")})
     with caplog.at_level("WARNING", logger="svf-kiosk"):
         asyncio.run(kp.listen_remote(lambda k: None, ["x"]))
@@ -897,6 +1014,7 @@ def test_listen_remote_warns_when_nothing_usable(fake_evdev, caplog):
 
 
 def test_listen_remote_survives_device_unplug(fake_evdev, caplog):
+    """Verify listen remote survives device unplug."""
     fake_evdev({
         "gone": FakeDevice("gone", [FakeEvent(1, 2, 1)], fail=True),
         "ok": FakeDevice("ok", [FakeEvent(1, 3, 1), FakeEvent(1, 4, 1)]),
@@ -908,6 +1026,7 @@ def test_listen_remote_survives_device_unplug(fake_evdev, caplog):
 
 
 def test_listen_remote_logs_missing_evdev(monkeypatch, caplog):
+    """Verify listen remote logs missing evdev."""
     import builtins
     real = builtins.__import__
     monkeypatch.setattr(builtins, "__import__",
@@ -918,6 +1037,7 @@ def test_listen_remote_logs_missing_evdev(monkeypatch, caplog):
 
 
 def test_run_wires_remote_keys_to_controller(tmp_path, monkeypatch, fake_evdev):
+    """Verify run wires remote keys to controller."""
     db = Database(tmp_path)
     ids = []
     for n in "AB":
@@ -935,6 +1055,7 @@ def test_run_wires_remote_keys_to_controller(tmp_path, monkeypatch, fake_evdev):
     sup, _ = make_supervisor(tmp_path, [FakeProc()])
 
     async def scenario():
+        """Handle scenario operations."""
         stop = asyncio.Event()
         task = asyncio.create_task(kp.run(db, sup, stop, devices=["k"], tick_seconds=0.05))
         await asyncio.sleep(0.4)
@@ -946,7 +1067,9 @@ def test_run_wires_remote_keys_to_controller(tmp_path, monkeypatch, fake_evdev):
 
 
 def test_supervisor_survives_missing_mpv_binary(tmp_path, caplog):
+    """Verify supervisor survives missing mpv binary."""
     def popen(cmd, env=None):
+        """Handle popen operations."""
         raise FileNotFoundError("mpv")
 
     sup = MpvSupervisor(str(tmp_path / "mpv.sock"), popen=popen)
@@ -958,9 +1081,11 @@ def test_supervisor_survives_missing_mpv_binary(tmp_path, caplog):
 
 
 def test_supervisor_retries_missing_mpv_after_interval(tmp_path):
+    """Verify supervisor retries missing mpv after interval."""
     attempts = []
 
     def popen(cmd, env=None):
+        """Handle popen operations."""
         attempts.append(1)
         raise FileNotFoundError("mpv")
 
@@ -972,14 +1097,17 @@ def test_supervisor_retries_missing_mpv_after_interval(tmp_path):
 
 
 def test_run_in_worker_thread_does_not_crash_on_signal_setup(tmp_path):
+    """Verify run in worker thread does not crash on signal setup."""
     import threading
     db = Database(tmp_path)
     sup, _ = make_supervisor(tmp_path, [FakeProc()])
     errors = []
 
     def target():
+        """Handle target operations."""
         try:
             async def scenario():
+                """Handle scenario operations."""
                 stop = asyncio.Event()
                 task = asyncio.create_task(kp.run(db, sup, stop, devices=[], tick_seconds=0.05))
                 await asyncio.sleep(0.2)
@@ -996,6 +1124,7 @@ def test_run_in_worker_thread_does_not_crash_on_signal_setup(tmp_path):
 
 
 def test_module_entry_point_runs_as_script(tmp_path):
+    """Verify module entry point runs as script."""
     import subprocess
     import sys
     env = {**os.environ, "SVF_ROOT": str(tmp_path), "PATH": "/nonexistent", "SVF_IPC_SOCK": str(tmp_path / "m.sock")}

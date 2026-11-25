@@ -21,11 +21,14 @@ class MpvIpcError(Exception):
 
 
 def default_socket_path() -> str:
+    """Handle default socket path operations."""
     return os.environ.get("SVF_IPC_SOCK", DEFAULT_SOCKET)
 
 
 class MpvClient:
+    """Encapsulate mpv client behavior."""
     def __init__(self, socket_path: str | None = None, timeout: float = 3.0) -> None:
+        """Initialize the instance."""
         self.socket_path = socket_path or default_socket_path()
         self.timeout = timeout
         self._ids = itertools.count(1)
@@ -69,13 +72,16 @@ class MpvClient:
         return await asyncio.to_thread(self.command, *args)
 
     def get_property(self, name: str) -> Any:
+        """Return data for get property."""
         return self.command("get_property", name)
 
     def set_property(self, name: str, value: Any) -> None:
+        """Update state for set property."""
         self.command("set_property", name, value)
 
     # ---- high level ------------------------------------------------
     def is_running(self) -> bool:
+        """Return whether is running."""
         if not Path(self.socket_path).exists():
             return False
         try:
@@ -85,9 +91,11 @@ class MpvClient:
             return False
 
     def load_file(self, path: str, mode: str = "replace") -> None:
+        """Produce the result for load file."""
         self.command("loadfile", path, mode)
 
     def load_playlist(self, file_paths: list[str]) -> None:
+        """Produce the result for load playlist."""
         self.command("playlist-clear")
         if not file_paths:
             self.command("stop")
@@ -97,16 +105,21 @@ class MpvClient:
             self.command("loadfile", path, "append")
 
     def pause(self) -> None:
+        """Handle pause operations."""
         self.set_property("pause", True)
 
     def resume(self) -> None:
+        """Handle resume operations."""
         self.set_property("pause", False)
 
     def stop(self) -> None:
+        """Handle stop operations."""
         self.command("stop")
 
     def get_playback_status(self) -> dict:
+        """Return data for get playback status."""
         def safe(name: str, default: Any) -> Any:
+            """Handle safe operations."""
             try:
                 value = self.get_property(name)
             except MpvIpcError as exc:
@@ -123,6 +136,7 @@ class MpvClient:
         }
 
     def show_osd(self, text: str, duration_ms: int = 3000) -> None:
+        """Handle show osd operations."""
         self.command("show-text", text, str(duration_ms))
 
     def play_preview(self, path: str, duration_sec: int = 15) -> None:
@@ -138,6 +152,7 @@ class MpvClient:
             self._restore(previous)
 
     def _restore(self, previous: dict) -> None:
+        """Handle restore operations."""
         if previous["file"]:
             options = f"start={previous['time_pos']:.2f}"
             self.command("loadfile", previous["file"], "replace", 0, options)

@@ -30,6 +30,7 @@ ANSI_PALETTE = {
 
 
 def select_palette(env: dict[str, str] | None = None) -> dict[str, str]:
+    """Handle select palette operations."""
     import os
 
     env = os.environ if env is None else env
@@ -39,6 +40,7 @@ def select_palette(env: dict[str, str] | None = None) -> dict[str, str]:
 
 
 def format_duration(seconds: int | None) -> str:
+    """Produce the result for format duration."""
     seconds = int(seconds or 0)
     return f"{seconds // 60:02d}:{seconds % 60:02d}"
 
@@ -47,6 +49,7 @@ class EditorState:
     """All editor logic, independent from the UI toolkit."""
 
     def __init__(self, db: Database, palette: dict[str, str] | None = None) -> None:
+        """Initialize the instance."""
         self.db = db
         self.palette = palette or select_palette()
         self.videos: list[dict[str, Any]] = db.get_available_videos()
@@ -67,24 +70,29 @@ class EditorState:
 
     # ------------------------------------------------------------ accessors
     def playlist_videos(self) -> list[dict[str, Any]]:
+        """Handle playlist videos operations."""
         return [self.by_id[i] for i in self.playlist_ids]
 
     def current_video(self) -> dict[str, Any] | None:
+        """Handle current video operations."""
         items = self.videos if self.focus == LEFT else self.playlist_videos()
         idx = self.left_idx if self.focus == LEFT else self.right_idx
         return items[idx] if 0 <= idx < len(items) else None
 
     def _clamp(self) -> None:
+        """Handle clamp operations."""
         self.left_idx = max(0, min(self.left_idx, len(self.videos) - 1))
         self.right_idx = max(0, min(self.right_idx, len(self.playlist_ids) - 1))
 
     # ------------------------------------------------------------ navigation
     def toggle_focus(self) -> None:
+        """Handle toggle focus operations."""
         if self.reorder or self.pending or self.awaiting_preset:
             return
         self.focus = RIGHT if self.focus == LEFT else LEFT
 
     def move(self, delta: int) -> None:
+        """Handle move operations."""
         if self.pending or self.awaiting_preset:
             return
         if self.focus == LEFT:
@@ -103,6 +111,7 @@ class EditorState:
 
     # --------------------------------------------------------------- actions
     def enter(self) -> None:
+        """Handle enter operations."""
         if self.pending or self.awaiting_preset:
             return
         video = self.current_video()
@@ -120,6 +129,7 @@ class EditorState:
             self.message = S.MSG_TUI_REORDER_ON if self.reorder else S.MSG_TUI_REORDER_OFF
 
     def remove(self) -> None:
+        """Handle remove operations."""
         if self.pending or self.awaiting_preset or self.focus != RIGHT or self.reorder or not self.playlist_ids:
             return
         video = self.by_id[self.playlist_ids.pop(self.right_idx)]
@@ -128,6 +138,7 @@ class EditorState:
         self.message = S.MSG_TUI_REMOVED.format(title=video["display_title"])
 
     def delete(self) -> None:
+        """Handle delete operations."""
         if self.pending or self.awaiting_preset or self.focus != LEFT:
             return
         video = self.current_video()
@@ -141,9 +152,11 @@ class EditorState:
         self.message = S.MSG_TUI_CONFIRM_DEL_1.format(title=video["display_title"])
 
     def keys_of(self, video_id: int) -> list[int]:
+        """Handle keys of operations."""
         return sorted(k for k, v in self.presets.items() if v == video_id)
 
     def start_preset(self) -> None:
+        """Handle start preset operations."""
         if self.pending or self.reorder or self.current_video() is None:
             return
         self.awaiting_preset = True
@@ -174,6 +187,7 @@ class EditorState:
             self.message = S.MSG_TUI_PRESET_INVALID
 
     def request_quit(self) -> None:
+        """Handle request quit operations."""
         if self.pending or self.awaiting_preset:
             return
         if self.dirty:
@@ -199,6 +213,7 @@ class EditorState:
             self._do_delete()
 
     def _do_delete(self) -> None:
+        """Handle do delete operations."""
         video = self.current_video()
         if video is None:
             return
@@ -218,6 +233,7 @@ class EditorState:
         self.message = S.MSG_TUI_DELETED.format(title=video["display_title"])
 
     def save(self) -> None:
+        """Handle save operations."""
         if self.pending or self.awaiting_preset:
             return
         self.db.create_backup("pre_edit")
@@ -244,6 +260,7 @@ class EditorState:
 
     # ------------------------------------------------------------- rendering
     def render_panel(self, which: str) -> Text:
+        """Handle render panel operations."""
         videos = self.videos if which == LEFT else self.playlist_videos()
         cursor = self.left_idx if which == LEFT else self.right_idx
         active = self.focus == which
@@ -273,6 +290,7 @@ class EditorState:
         return out
 
     def render_inspector(self) -> Text:
+        """Handle render inspector operations."""
         video = self.current_video()
         out = Text()
         if video is None:
@@ -292,10 +310,12 @@ class EditorState:
 
 
 def build_app(db: Database):
+    """Produce the result for build app."""
     from textual.app import App, ComposeResult
     from textual.widgets import Static
 
     class PlaylistEditor(App):
+        """Encapsulate playlist editor behavior."""
         CSS = """
         Screen { background: #000000; color: #FFFFFF; layout: vertical; }
         #header { height: 1; }
@@ -307,10 +327,12 @@ def build_app(db: Database):
         """
 
         def __init__(self) -> None:
+            """Initialize the instance."""
             super().__init__()
             self.state = EditorState(db)
 
         def compose(self) -> ComposeResult:
+            """Handle compose operations."""
             from textual.containers import Horizontal
 
             yield Static(S.UI_TUI_HEADER, id="header")
@@ -322,9 +344,11 @@ def build_app(db: Database):
             yield Static(S.UI_TUI_FOOTER, id="footer")
 
         def on_mount(self) -> None:
+            """Handle on mount operations."""
             self.refresh_view()
 
         def refresh_view(self) -> None:
+            """Handle refresh view operations."""
             st = self.state
             self.query_one("#left", Static).update(st.render_panel(LEFT))
             self.query_one("#right", Static).update(st.render_panel(RIGHT))
@@ -337,6 +361,7 @@ def build_app(db: Database):
                 self.exit()
 
         def on_key(self, event) -> None:
+            """Handle on key operations."""
             st = self.state
             key = event.key
             if st.pending:
@@ -371,6 +396,7 @@ def build_app(db: Database):
 
 
 def main() -> int:
+    """Run the playlist_editor command-line entry point."""
     build_app(Database()).run()
     return 0
 

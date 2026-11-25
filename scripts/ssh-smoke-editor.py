@@ -26,6 +26,7 @@ from src.db.database import Database  # noqa: E402
 
 
 def seed(root: Path) -> None:
+    """Handle seed operations."""
     db = Database(root)
     for name in ("Delta", "Alfa", "Charlie", "Bravo"):
         f = root / f"{name}.mp4"
@@ -34,6 +35,7 @@ def seed(root: Path) -> None:
 
 
 def read_for(fd: int, seconds: float) -> bytes:
+    """Return data for read for."""
     out, end = b"", time.time() + seconds
     while time.time() < end:
         if select.select([fd], [], [], 0.1)[0]:
@@ -48,6 +50,7 @@ def read_for(fd: int, seconds: float) -> bytes:
 
 
 def main() -> int:
+    """Run the ssh-smoke-editor command-line entry point."""
     host = sys.argv[1] if len(sys.argv) > 1 else "localhost"
     term = sys.argv[2] if len(sys.argv) > 2 else "xterm-256color"
     root = Path(tempfile.mkdtemp(prefix="svf-smoke-"))

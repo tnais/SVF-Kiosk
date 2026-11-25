@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class VideoMetadata(BaseModel):
+    """Encapsulate video metadata behavior."""
     id: int | None = None
     file_path: str
     display_title: str
@@ -21,6 +22,7 @@ class VideoMetadata(BaseModel):
     @field_validator("file_path")
     @classmethod
     def validate_file_path(cls, value: str) -> str:
+        """Handle validate file path operations."""
         if PurePath(value).suffix.lower() not in {".mp4", ".mkv", ".mov", ".avi"}:
             raise ValueError("file_path must end with .mp4, .mkv, .mov, or .avi")
         return value
@@ -28,6 +30,7 @@ class VideoMetadata(BaseModel):
     @field_validator("display_title")
     @classmethod
     def validate_display_title(cls, value: str) -> str:
+        """Handle validate display title operations."""
         value = value.strip()
         if not value:
             raise ValueError("display_title must not be empty")
@@ -38,22 +41,26 @@ class VideoMetadata(BaseModel):
     @field_validator("description")
     @classmethod
     def validate_description(cls, value: str | None) -> str | None:
+        """Handle validate description operations."""
         if value is not None and len(value) > 150:
             raise ValueError("description must be at most 150 characters")
         return value
 
 
 class PlaylistItem(BaseModel):
+    """Encapsulate playlist item behavior."""
     position: int = Field(ge=1)
     video: VideoMetadata
 
 
 class RemotePreset(BaseModel):
+    """Encapsulate remote preset behavior."""
     preset_key: int = Field(ge=1, le=9)
     video_id: int
 
 
 class KioskState(BaseModel):
+    """Encapsulate kiosk state behavior."""
     is_playing: bool
     current_video: VideoMetadata | None
     elapsed_seconds: float
